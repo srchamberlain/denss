@@ -76,6 +76,9 @@ def parse_arguments(parser):
     parser.add_argument("--plot_off", dest="plot", action="store_false", help="Do not create simple plots of results. (Default if Matplotlib does not exist)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Do not display running statistics. (default False)")
     parser.add_argument("-gpu", "--gpu", dest="DENSS_GPU", action="store_true", help="Use GPU acceleration (requires CuPy). (default False)")
+    parser.add_argument("-pdb_known", "--pdb_known", dest="pdb_fn_known", type=str, help="PDB filename defining known atoms.")
+    parser.add_argument("-pdb_search", "--pdb_search", dest="pdb_fn_search", type=str, help="PDB filename defining coordinates for calculating search region.")
+    parser.add_argument("-pdb_ligand", "--pdb_ligand", dest="pdb_fn_ligand", type=str, help="PDB filename defining ligand atoms (for development only).")
     parser.set_defaults(shrinkwrap=None)
     parser.set_defaults(shrinkwrap_old_method=None)
     parser.set_defaults(recenter=None)
@@ -123,11 +126,11 @@ def parse_arguments(parser):
     Iq[:,1] = Ifit
     Iq[:,2] = sigq
 
-    idx = np.where(I>0)
+    idx = np.where(I>(-np.inf))
     qraw = np.copy(q)
     Iraw = np.copy(I)
     sigqraw = np.copy(sigq)
-    idx = np.where(I>0)
+    idx = np.where(I>(-np.inf))
     qraw = qraw[idx]
     Iraw = Iraw[idx]
     sigqraw = sigqraw[idx]
@@ -136,7 +139,8 @@ def parse_arguments(parser):
         print("Not enough data points (check that data has 3 columns: q, I, errors).")
         exit()
 
-    Iq = saxs.clean_up_data(Iq)
+    if args.pdb_fn_known is None:
+        Iq = saxs.clean_up_data(Iq)
     is_raw_data = saxs.check_if_raw_data(Iq)
     #now that we've cleaned up the data, reset the q, I, sigq arrays
     q = Iq[:,0]

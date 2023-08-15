@@ -102,7 +102,10 @@ if __name__ == "__main__":
         cutout=args.cutout,
         quiet=args.quiet,
         DENSS_GPU=args.DENSS_GPU,
-        my_logger=my_logger)
+        my_logger=my_logger,
+        pdb_fn_known=args.pdb_fn_known,
+        pdb_fn_search=args.pdb_fn_search,
+        pdb_fn_ligand=args.pdb_fn_ligand) #This last one is for development purposes only
 
     print("\n%s"%args.output)
 
