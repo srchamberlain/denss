@@ -207,10 +207,16 @@ def parse_arguments(parser):
     #denss cannot deal with negative intensity values which sometimes happens with real data
     #if the fit goes negative, denss will fail
     #so first, remove all negative intensity values from the fit
-    idx_pos = np.where(I>0)
-    q = q[idx_pos]
-    I = I[idx_pos]
-    sigq = sigq[idx_pos]
+    if args.pdb_fn_known is not None:
+        idx_pos = np.where(I>(-np.inf))
+        q = q[idx_pos]
+        I = I[idx_pos]
+        sigq = sigq[idx_pos]
+    else:
+        idx_pos = np.where(I>0)
+        q = q[idx_pos]
+        I = I[idx_pos]
+        sigq = sigq[idx_pos]
 
     #allow ncs_steps to be either list of ints or string of list of ints
     if isinstance(args.ncs_steps, list):

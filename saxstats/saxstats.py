@@ -1093,9 +1093,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
     df = 1/side
     qx_ = np.fft.fftfreq(x_.size)*n*df*2*np.pi
-    qz_ = np.fft.rfftfreq(x_.size)*n*df*2*np.pi
-    # qx, qy, qz = np.meshgrid(qx_,qx_,qx_,indexing='ij')
-    qx, qy, qz = np.meshgrid(qx_,qx_,qz_,indexing='ij')
+    # qz_ = np.fft.rfftfreq(x_.size)*n*df*2*np.pi
+    qx, qy, qz = np.meshgrid(qx_,qx_,qx_,indexing='ij')
+    # qx, qy, qz = np.meshgrid(qx_,qx_,qz_,indexing='ij')
     qr = np.sqrt(qx**2+qy**2+qz**2)
     qmax = np.max(qr)
     qstep = np.min(qr[qr>0]) - 1e-8 #subtract a tiny bit to deal with floating point error
@@ -1131,7 +1131,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
     sigqdata = np.interp(qdata,q,sigq)
 
-    scale_factor = ne**2 / Idata[0]
+    scale_factor = 1 #ne**2 / Idata[0]
     Idata *= scale_factor
     sigqdata *= scale_factor
     I *= scale_factor
@@ -1203,10 +1203,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_threshold = 1e-4
 
         pdb_known = PDB(pdb_fn_known)
-        # rho_known, idx_known = pdb2map_multigauss(pdb_known,x,y,z,cutoff=dl,resolution=resolution)
-        # idx_known = pdb2support_fast(pdb_known,x,y,z,dr=dl)
-        # idx_known *= False
-        # idx_known[rho_known>idx_threshold*rho_known.max()] = True
         pdb2mrc_known = PDB2MRC(
             pdb=pdb_known,
             center_coords=False,
@@ -1219,14 +1215,18 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         print(pdb2mrc_known.side)
         pdb2mrc_known.scale_radii()
         pdb2mrc_known.make_grids()
+        #Inserted for testing
+        pdb2mrc_known.calculate_global_B() #use pdb2sas to give pdb for holo, pdb for apo, calc difference scattering
+                                            #calc density my with pdb2mrc to generate holo and apo with global B and correction,
+                                            #then calc again without the correction, check difference profiles for all cases 
+                                            #against one another.
+        #########
         pdb2mrc_known.calculate_invacuo_density()
         pdb2mrc_known.calculate_excluded_volume()
         pdb2mrc_known.calculate_hydration_shell()
         pdb2mrc_known.calc_rho_with_modified_params(pdb2mrc_known.params)
         rho_known = pdb2mrc_known.rho_insolvent
         idx_known = pdb2support_fast(pdb_known,x,y,z)
-
-        rho_known_min = np.min(rho_known)
 
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
@@ -1250,7 +1250,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ###Will need a new method for scaling this up instead of using electrons from the ligand
         #density map
 
-
         #density of the known ligand 
         #-----------for development purposes only-------------#
         bn_ligand, ext = os.path.splitext(pdb_fn_ligand)
@@ -1265,6 +1264,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             shell_contrast=0.0)
         pdb2mrc_ligand.scale_radii()
         pdb2mrc_ligand.make_grids()
+        #added for testing
+        pdb2mrc_ligand.calculate_global_B()
+        ####
         pdb2mrc_ligand.calculate_invacuo_density()
         pdb2mrc_ligand.calculate_excluded_volume()
         pdb2mrc_ligand.calculate_hydration_shell()
@@ -1283,11 +1285,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_holo = idx_known + idx_search
 
         #calculate ligand scattering profile for testing
-        F_ligand = myrfftn(rho_ligand)
+        F_ligand = myfftn(rho_ligand)
         Amp3D_ligand = np.abs(F_ligand)
-        phase3D_ligand = np.angle(F_ligand)
+        # phase3D_ligand = np.angle(F_ligand)
         I3D_ligand = Amp3D_ligand**2
-        rho_ligand = myirfftn(F_ligand).real
+        # rho_ligand = myifftn(F_ligand).real
         Imean_ligand = mybinmean(I3D_ligand.ravel(), qblravel, xcount, DENSS_GPU=False)
 
         #cumulative distribution function of ligand for histogram matching
@@ -1297,10 +1299,16 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ne_ligand = np.sum(rho_ligand)
         ne_ligand_invacuo = np.sum(rho_ligand_invacuo)
         emax_ligand = np.max(rho_ligand)
+        print('Number of electrons in ligand: %.2f' % (ne_ligand))
 
         #calculate structure factors (F), 3D intensities (I3D), and 1D spherical averages, i.e. SWAXS (Imean)
-        F_holo = myrfftn(rho_holo)
-        F_known = myrfftn(rho_known)
+        F_holo = myfftn(rho_holo)
+        F_known = myfftn(rho_known)
+        # pdb2mrc_known.calculate_structure_factors()
+        # F_known = pdb2mrc_known.F_invacuo - pdb2mrc_known.F_exvol + pdb2mrc_known.F_shell
+        # pdb2mrc_known.calc_F_with_modified_params(pdb2mrc_known.params)
+        # F_known = pdb2mrc_known.F
+        F_holo = F_known+F_ligand
         Amp3D_holo = np.abs(F_holo)
         Amp3D_known = np.abs(F_known)
         # phase3D_holo = np.angle(F_holo)
@@ -1309,6 +1317,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         I3D_known = Amp3D_known**2
         Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
         Imean_known = mybinmean(I3D_known.ravel(), qblravel, xcount, DENSS_GPU=False)
+
+        rho_known_fromF = myifftn(F_known).real
+        write_mrc(rho_known_fromF,side,fprefix+'_known_fromF.mrc')
+
+        exit()
 
         #calculate difference scattering profile for testing
         #in experiment, this would be given by the user
@@ -1319,12 +1332,19 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         Imean_diff = Imean_holo - Imean_known
         Idata = Imean_holo
 
-        #---------end of development section---------------#
+        # Iq_holo = np.zeros((len(qbinsc),2))
+        # Iq_holo[:,0] = qbinsc
+        # Iq_holo[:,1] = Imean_holo
+        # np.savetxt('I_mean_holo_test.pdb2mrc2sas.dat', Iq_holo)
+
+        # exit()
 
         #set the number of electrons in the ligand search space
         #This will need to be changed when no longer reading in ligand pdb
         # rho_search *= ne_ligand/np.sum(rho_search)
         rho_search *= emax_ligand/np.max(rho_search)
+
+        #---------end of development section---------------#
 
         rho = rho_known + rho_search
 
@@ -1466,8 +1486,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 my_logger.info('Aborted!')
                 return []
 
-        # F = myfftn(rho, DENSS_GPU=DENSS_GPU)
-        F = myrfftn(rho, DENSS_GPU=DENSS_GPU)
+        F = myfftn(rho, DENSS_GPU=DENSS_GPU)
+        # F = myrfftn(rho, DENSS_GPU=DENSS_GPU)
 
         #sometimes, when using denss.refine.py with non-random starting rho,
         #the resulting Fs result in zeros in some locations and the algorithm to break
@@ -1491,7 +1511,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         #APPLY REAL SPACE RESTRAINTS
         # rhoprime = myifftn(F, DENSS_GPU=DENSS_GPU).real
-        rhoprime = myirfftn(F, DENSS_GPU=DENSS_GPU).real
+        rhoprime = myifftn(F, DENSS_GPU=DENSS_GPU).real
 
         # use Guinier's law to approximate quickly
         rg[j] = calc_rg_by_guinier_first_2_points(qbinsc, Imean, DENSS_GPU=DENSS_GPU)
@@ -1500,13 +1520,13 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             old_rho_search = np.copy(rho_search)
             rho_search = rhoprime - rho_known
 
+
         if not DENSS_GPU and j%write_freq == 0:
             if write_xplor_format:
                 write_xplor(rhoprime/dV, side, fprefix+"_current.xplor")
             write_mrc(rhoprime/dV, side, fprefix+"_current.mrc")
             if DENSS_HR:
-                write_mrc(rho_search/dV, side, fprefix+"_search_current.mrc")
-        
+                write_mrc(rho_search/dV, side, fprefix+"_search_current.mrc")    
 
         ##This is where differences will be more major in the code, need to decide how to encorperate 
         #denss-hr changes. 
@@ -1529,7 +1549,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search[~idx_search] = old_rho_search[~idx_search] - beta*rho_search[~idx_search]
 
             #attempt to "smooth" the density to make it less noisy
-            if smooth and j%500==0:
+            if smooth and j==(steps-1): #j%500==0:
                 rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
                 #sigma is in pixels, not angrstroms
 
@@ -1554,7 +1574,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             # rescale the search density so that it has the correct number of electrons
             # based on the expected ligand electron count (or alternatively based on maximum density)
             scale_ne = True #only do any scaling if desired
-            new_ne_scaling = True
+            new_ne_scaling = False
             if new_ne_scaling and scale_ne:
                 if j<20: # and j<1200: # and j<shrinkwrap_minstep:
                     rho_search *= emax_ligand / rho_search[idx_search].max()
@@ -1808,8 +1828,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if DENSS_HR:
             rho_known = cp.asarray(rho_known)
 
-    # F = myfftn(rho)
-    F = myrfftn(rho)
+    F = myfftn(rho)
+    # F = myrfftn(rho)
     #calculate spherical average intensity from 3D Fs
     I3D = abs2(F)
     # I3D = myabs(F)**2
@@ -1819,8 +1839,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
     factors = np.sqrt(Idata/Imean)
     factors[~qba] = 1.0
     F *= factors[qbin_labels]
-    # rho = myifftn(F)
-    rho = myirfftn(F)
+    rho = myifftn(F)
+    # rho = myirfftn(F)
     rho = rho.real
 
     if DENSS_HR:
@@ -1882,6 +1902,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
     write_mrc(np.ones_like(rho)*support,side, fprefix+"_support.mrc")
     if DENSS_HR:
         write_mrc(rho_search,side,fprefix+"_search.mrc")
+        write_mrc(idx_search,side,fprefix+"_idxsearch.mrc")
+
 
     #return original unscaled values of Idata (and therefore Imean) for comparison with real data
     Idata /= scale_factor
@@ -1899,7 +1921,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         sigqraw = sigq
     Iq_exp = np.vstack((qraw,Iraw,sigqraw)).T
     Iq_calc = np.vstack((qbinsc, Imean, Imean*0.01)).T
-    idx = np.where(Iraw>0)
+    idx = np.where(Iraw>(-np.inf))
     Iq_exp = Iq_exp[idx]
     qmax = np.min([Iq_exp[:,0].max(),Iq_calc[:,0].max()])
     Iq_exp = Iq_exp[Iq_exp[:,0]<=qmax]
