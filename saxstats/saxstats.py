@@ -1182,7 +1182,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         histmatch = False
         clip_density = False
 
-        enable_HIO = True
+        enable_HIO = False
         HIO = False
         ER = True
         beta = 1.1
@@ -1274,11 +1274,10 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         rho_ligand_invacuo = pdb2mrc_ligand.rho_invacuo
         rho_ligand_exvol = pdb2mrc_ligand.rho_exvol
         rho_ligand = pdb2mrc_ligand.rho_insolvent
+        rho_ligand[~idx_search] = 0 
         print(pdb2mrc_ligand.rho0, pdb2mrc_ligand.shell_contrast)
         idx_ligand = pdb2support_fast(pdb_ligand,x,y,z)
         ligand_volume = idx_ligand.sum()*dV
-
-        write_mrc(rho_ligand,side,fprefix+'_lig_true.mrc')
 
         #generate holo density for calculating scattering profile
         rho_holo = rho_known + rho_ligand
@@ -1298,6 +1297,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #save the total number of electrons for the ligand
         ne_ligand = np.sum(rho_ligand)
         ne_ligand_invacuo = np.sum(rho_ligand_invacuo)
+        ne_ligand_pos = np.sum(rho_ligand[rho_ligand>0])
+        ne_ligand_neg = np.sum(rho_ligand[rho_ligand<0])
         emax_ligand = np.max(rho_ligand)
         print('Number of electrons in ligand: %.2f' % (ne_ligand))
 
@@ -1317,11 +1318,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         I3D_known = Amp3D_known**2
         Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
         Imean_known = mybinmean(I3D_known.ravel(), qblravel, xcount, DENSS_GPU=False)
-
-        rho_known_fromF = myifftn(F_known).real
-        write_mrc(rho_known_fromF,side,fprefix+'_known_fromF.mrc')
-
-        exit()
 
         #calculate difference scattering profile for testing
         #in experiment, this would be given by the user
@@ -1556,8 +1552,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             #enforce positivity by making all negative density points zero in search.
             if (positivity):# & (j<1000): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<rho_known_min] = 0.0
-                # rho_search[rho_search<rho_known_min] = rho_known_min
-                rho_search[rho_search<0] = 0.0
+                rho_search[rho_search<rho_known_min] = rho_known_min
+                # rho_search[rho_search<0] = 0.0
 
             #if enabled, attempt to progressively update search space with shrinkwrap
             search_volume = idx_search.sum() * dV
@@ -1583,7 +1579,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 else:
                     rho_search *= ne_ligand / rho_search[idx_search].sum()
             elif scale_ne: #and j%500==0:
-                rho_search *= ne_ligand / rho_search[idx_search].sum()
+                # rho_search *= ne_ligand / rho_search[idx_search].sum()
+                rho_search[rho_search>0] *= ne_ligand_pos / rho_search[rho_search>0].sum()
+                rho_search[rho_search<0] *= ne_ligand_neg/ rho_search[rho_search<0].sum()
 
             newrho = rho_known + rho_search
 
@@ -4306,7 +4304,8 @@ def pdb2map_simple_gauss_by_radius(pdb,x,y,z,cutoff=3.0,rho0=0.334,ignore_waters
     # print("\n Calculate density map from PDB... ")
     values = np.zeros(x.shape)
     support = np.zeros(x.shape,dtype=bool)
-    cutoffs = 2*pdb.vdW
+    # cutoffs = 2*pdb.vdW
+    cutoffs = 4*pdb.vdW
     gxmin = x.min()
     gxmax = x.max()
     gymin = y.min()
@@ -4375,7 +4374,7 @@ def pdb2map_simple_gauss_by_radius(pdb,x,y,z,cutoff=3.0,rho0=0.334,ignore_waters
         support[slc] = True
     return values, support
 
-def pdb2map_multigauss(pdb,x,y,z,cutoff=3.0,global_B=None,use_b=False,ignore_waters=True):
+def pdb2map_multigauss(pdb,x,y,z,cutoff=6.0,global_B=None,use_b=False,ignore_waters=True):
     """5-term gaussian sum at coordinate locations using Cromer-Mann coefficients.
 
     This function only calculates the values at
