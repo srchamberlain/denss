@@ -1227,6 +1227,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         pdb2mrc_known.calc_rho_with_modified_params(pdb2mrc_known.params)
         rho_known = pdb2mrc_known.rho_insolvent
         idx_known = pdb2support_fast(pdb_known,x,y,z)
+        rho_known_min = rho_known.min()
 
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
