@@ -1260,7 +1260,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             voxel=dx,
             side=side,
             nsamples=n,
-            rho0=0.0,  ##if rho0=0, we should be able to use positivity, since should all be positive inside search space
+            rho0=0.334,  ##if rho0=0, we should be able to use positivity, since should all be positive inside search space
             shell_contrast=0.0)
         pdb2mrc_ligand.scale_radii()
         pdb2mrc_ligand.make_grids()
