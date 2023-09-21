@@ -1486,7 +1486,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #sometimes, when using denss.refine.py with non-random starting rho,
         #the resulting Fs result in zeros in some locations and the algorithm to break
         #here just make those values to be 1e-16 to be non-zero
-        F[np.abs(F)==0] = 1e-16
+        # F[np.abs(F)==0] = 1e-16
 
         #APPLY RECIPROCAL SPACE RESTRAINTS
         #calculate spherical average of intensities from 3D Fs
@@ -1511,7 +1511,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         rg[j] = calc_rg_by_guinier_first_2_points(qbinsc, Imean, DENSS_GPU=DENSS_GPU)
 
         if DENSS_HR:
+            if DENSS_GPU:
+                rho_search = cp.asnumpy(rho_search)
             old_rho_search = np.copy(rho_search)
+            if DENSS_GPU:
+                rho_search = cp.array(rho_search)
             rho_search = rhoprime - rho_known
 
 
