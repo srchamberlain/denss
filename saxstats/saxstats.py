@@ -1168,6 +1168,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
     # pdb_fn_known = None
     if pdb_fn_known is not None:
+        print()
+        print("Running DENSS high resolution - development stage")
+        print()
         DENSS_HR = True
         ##set up for restraining known regions in density reconstruction
         #turn off shrinkwrap, enforce_connectivity and recentering, 
@@ -1177,11 +1180,14 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         enforce_connectivity = False
         recenter = False
 
+        #Some of these are for development purposes.
         smooth = False
 
         histmatch = False
         clip_density = False
 
+        ## HIO works well with in-vacuo simulated density but not as well with 
+        # protein and ligand in contrast. So disabled here for now.
         enable_HIO = False
         HIO = False
         ER = True
@@ -1203,6 +1209,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_threshold = 1e-4
 
         pdb_known = PDB(pdb_fn_known)
+        print()
+        print("Calculating density map of known structure.")
         pdb2mrc_known = PDB2MRC(
             pdb=pdb_known,
             center_coords=False,
@@ -1211,8 +1219,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             nsamples=n,
             rho0=0.334,
             shell_contrast=0.019)
-        print(side)
-        print(pdb2mrc_known.side)
         pdb2mrc_known.scale_radii()
         pdb2mrc_known.make_grids()
         #Inserted for testing
@@ -1254,6 +1260,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #density of the known ligand 
         #-----------for development purposes only-------------#
         bn_ligand, ext = os.path.splitext(pdb_fn_ligand)
+        print()
+        print("Calculating density map of ligand structure - for development purposes.")
         pdb_ligand = PDB(pdb_fn_ligand)
         pdb2mrc_ligand = PDB2MRC(
             pdb=pdb_ligand,
@@ -1306,10 +1314,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #calculate structure factors (F), 3D intensities (I3D), and 1D spherical averages, i.e. SWAXS (Imean)
         F_holo = myfftn(rho_holo)
         F_known = myfftn(rho_known)
-        # pdb2mrc_known.calculate_structure_factors()
-        # F_known = pdb2mrc_known.F_invacuo - pdb2mrc_known.F_exvol + pdb2mrc_known.F_shell
-        # pdb2mrc_known.calc_F_with_modified_params(pdb2mrc_known.params)
-        # F_known = pdb2mrc_known.F
         F_holo = F_known+F_ligand
         Amp3D_holo = np.abs(F_holo)
         Amp3D_known = np.abs(F_known)
@@ -1328,13 +1332,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #to ensure the proper distinction between known and apo
         Imean_diff = Imean_holo - Imean_known
         Idata = Imean_holo
-
-        # Iq_holo = np.zeros((len(qbinsc),2))
-        # Iq_holo[:,0] = qbinsc
-        # Iq_holo[:,1] = Imean_holo
-        # np.savetxt('I_mean_holo_test.pdb2mrc2sas.dat', Iq_holo)
-
-        # exit()
 
         #set the number of electrons in the ligand search space
         #This will need to be changed when no longer reading in ligand pdb
@@ -1898,10 +1895,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         write_xplor(np.ones_like(rho)*support, side, fprefix+"_support.xplor")
 
     write_mrc(rho,side,fprefix+".mrc")
-    write_mrc(np.ones_like(rho)*support,side, fprefix+"_support.mrc")
     if DENSS_HR:
         write_mrc(rho_search,side,fprefix+"_search.mrc")
-        write_mrc(idx_search,side,fprefix+"_idxsearch.mrc")
+        write_mrc(np.ones_like(rho_search)*idx_search,side, fprefix+"_search_support.mrc")
+    else:
+        write_mrc(np.ones_like(rho)*support,side, fprefix+"_support.mrc")
 
 
     #return original unscaled values of Idata (and therefore Imean) for comparison with real data
@@ -1918,9 +1916,13 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         Iraw = I
     if sigqraw is None:
         sigqraw = sigq
-    Iq_exp = np.vstack((qraw,Iraw,sigqraw)).T
+    if DENSS_HR:
+        Iq_exp = np.vstack((qdata,Idata,Idata*0.01)).T
+        idx = np.where(Idata>(-np.inf))
+    else:
+        Iq_exp = np.vstack((qraw,Iraw,sigqraw)).T
+        idx = np.where(Iraw>(-np.inf))
     Iq_calc = np.vstack((qbinsc, Imean, Imean*0.01)).T
-    idx = np.where(Iraw>(-np.inf))
     Iq_exp = Iq_exp[idx]
     qmax = np.min([Iq_exp[:,0].max(),Iq_calc[:,0].max()])
     Iq_exp = Iq_exp[Iq_exp[:,0]<=qmax]
@@ -3133,7 +3135,7 @@ class Sasrec(object):
 
 class PDB(object):
     """Load pdb file."""
-    def __init__(self, filename=None, natoms=None, ignore_waters=False):
+    def __init__(self, filename=None, natoms=None, ignore_waters=True):
         if isinstance(filename, int):
             #if a user gives no keyword argument, but just an integer,
             #assume the user means the argument is to be interpreted
@@ -3149,7 +3151,7 @@ class PDB(object):
         self.unique_radius = None
         self.unique_volume = None
 
-    def read_pdb(self, filename, ignore_waters=False):
+    def read_pdb(self, filename, ignore_waters=True):
         self.natoms = 0
         with open(filename) as f:
             for line in f:
@@ -3161,16 +3163,16 @@ class PDB(object):
                     continue
                 self.natoms += 1
         self.atomnum = np.zeros((self.natoms),dtype=int)
-        self.atomname = np.zeros((self.natoms),dtype=np.dtype((np.str,3)))
-        self.atomalt = np.zeros((self.natoms),dtype=np.dtype((np.str,1)))
-        self.resname = np.zeros((self.natoms),dtype=np.dtype((np.str,3)))
+        self.atomname = np.zeros((self.natoms),dtype=np.dtype((str,3)))
+        self.atomalt = np.zeros((self.natoms),dtype=np.dtype((str,1)))
+        self.resname = np.zeros((self.natoms),dtype=np.dtype((str,3)))
         self.resnum = np.zeros((self.natoms),dtype=int)
-        self.chain = np.zeros((self.natoms),dtype=np.dtype((np.str,1)))
+        self.chain = np.zeros((self.natoms),dtype=np.dtype((str,1)))
         self.coords = np.zeros((self.natoms, 3))
         self.occupancy = np.zeros((self.natoms))
         self.b = np.zeros((self.natoms))
-        self.atomtype = np.zeros((self.natoms),dtype=np.dtype((np.str,2)))
-        self.charge = np.zeros((self.natoms),dtype=np.dtype((np.str,2)))
+        self.atomtype = np.zeros((self.natoms),dtype=np.dtype((str,2)))
+        self.charge = np.zeros((self.natoms),dtype=np.dtype((str,2)))
         self.nelectrons = np.zeros((self.natoms),dtype=int)
         self.vdW = np.zeros(self.natoms)
         self.numH = np.zeros(self.natoms)
@@ -3242,15 +3244,15 @@ class PDB(object):
         #simple array of incrementing integers, starting from 1
         self.atomnum = np.arange((self.natoms),dtype=int)+1
         #all carbon atoms by default
-        self.atomname = np.full((self.natoms),"C",dtype=np.dtype((np.str,3)))
+        self.atomname = np.full((self.natoms),"C",dtype=np.dtype((str,3)))
         #no alternate conformations by default
-        self.atomalt = np.zeros((self.natoms),dtype=np.dtype((np.str,1)))
+        self.atomalt = np.zeros((self.natoms),dtype=np.dtype((str,1)))
         #all Alanines by default
-        self.resname = np.full((self.natoms),"ALA",dtype=np.dtype((np.str,3)))
+        self.resname = np.full((self.natoms),"ALA",dtype=np.dtype((str,3)))
         #each atom belongs to a new residue by default
         self.resnum = np.arange((self.natoms),dtype=int)
         #chain A by default
-        self.chain = np.full((self.natoms),"A",dtype=np.dtype((np.str,1)))
+        self.chain = np.full((self.natoms),"A",dtype=np.dtype((str,1)))
         #all atoms at (0,0,0) by default
         self.coords = np.zeros((self.natoms, 3))
         #all atoms 1.0 occupancy by default
@@ -3258,9 +3260,9 @@ class PDB(object):
         #all atoms 20 A^2 by default
         self.b = np.ones((self.natoms))*20.0
         #all atom types carbon by default
-        self.atomtype = np.full((self.natoms),"C",dtype=np.dtype((np.str,2)))
+        self.atomtype = np.full((self.natoms),"C",dtype=np.dtype((str,2)))
         #all atoms neutral by default
-        self.charge = np.zeros((self.natoms),dtype=np.dtype((np.str,2)))
+        self.charge = np.zeros((self.natoms),dtype=np.dtype((str,2)))
         #all atoms carbon so have six electrons by default
         self.nelectrons = np.ones((self.natoms),dtype=int)*6
         self.radius = np.zeros(self.natoms)
@@ -3585,7 +3587,7 @@ class PDB2MRC(object):
         side=None,
         nsamples=None,
         rho0=0.334,
-        shell_contrast=0.019,
+        shell_contrast=0.011,
         shell_mrcfile=None,
         shell_type='water',
         Icalc_interpolation=True,
@@ -4841,7 +4843,7 @@ def calc_chi2(Iq_exp, Iq_calc, scale=True, offset=False, interpolation=True,retu
     else:
         return chi2
 
-def calc_uniform_shell(pdb,x,y,z,thickness,distance=1.4):
+def calc_uniform_shell(pdb,x,y,z,thickness=2.8,distance=1.4):
     """create a one angstrom uniform layer around the particle
 
     Centered one water molecule radius away from the particle surface,
@@ -4855,7 +4857,7 @@ def calc_uniform_shell(pdb,x,y,z,thickness,distance=1.4):
     x,y,z - meshgrids for x, y, and z (required)
     thickness - thickness of the shell (required)
     """
-    r_water = 1.4
+    # r_water = 1.4
     inner_support = pdb2support_fast(pdb,x,y,z,radius=pdb.vdW,probe=distance-thickness/2)
     outer_support = pdb2support_fast(pdb,x,y,z,radius=pdb.vdW,probe=distance+thickness/2)
     shell_idx = outer_support
