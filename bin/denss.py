@@ -105,7 +105,8 @@ if __name__ == "__main__":
         my_logger=my_logger,
         pdb_fn_known=args.pdb_fn_known,
         pdb_fn_search=args.pdb_fn_search,
-        pdb_fn_ligand=args.pdb_fn_ligand) #This last one is for development purposes only
+        pdb_fn_ligand=args.pdb_fn_ligand, 
+        dev_var=args.dev_var) #The last two are for development purposes only
 
     print("\n%s"%args.output)
 

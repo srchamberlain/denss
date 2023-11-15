@@ -4,6 +4,7 @@ from ._version import __version__
 import os, argparse
 import numpy as np
 from . import saxstats as saxs
+import json
 
 def store_parameters_as_string(sasrec):
     param_str = ("Parameter Values:\n"
@@ -79,6 +80,7 @@ def parse_arguments(parser):
     parser.add_argument("-pdb_known", "--pdb_known", dest="pdb_fn_known", type=str, help="PDB filename defining known atoms.")
     parser.add_argument("-pdb_search", "--pdb_search", dest="pdb_fn_search", type=str, help="PDB filename defining coordinates for calculating search region.")
     parser.add_argument("-pdb_ligand", "--pdb_ligand", dest="pdb_fn_ligand", type=str, help="PDB filename defining ligand atoms (for development only).")
+    parser.add_argument("-dv", "--dev_var", dest="dev_var", default={}, type=json.loads)
     parser.set_defaults(shrinkwrap=None)
     parser.set_defaults(shrinkwrap_old_method=None)
     parser.set_defaults(recenter=None)
@@ -90,6 +92,61 @@ def parse_arguments(parser):
     parser.set_defaults(DENSS_GPU = False)
     parser.set_defaults(plot=True)
     args = parser.parse_args()
+
+    if args.dev_var is None:
+        ##Set up dev_var dictionary with default values
+        dev_var = {}
+        dev_var["enable_HIO"] = False
+        dev_var["beta"] = 0.0
+        dev_var["search_invacuo"] = False
+        dev_var["ksol"] = 0.0
+        dev_var["Bsol"] = 0.0
+        dev_var["enable_scale_F_search"] = False
+        dev_var["enable_RAAR"] = False
+        dev_var["histmatch"] = False
+        dev_var["iv_step"] = 1000
+        dev_var["scale_ne"] = False
+
+        # exit()
+    else:
+        ##Set up dev_var with the variables that were passed (check for each development 
+        #variable using if "___" in keys), and set defaults for the rest
+        dev_var = args.dev_var
+        if dev_var.get("enable_HIO") is None:
+            dev_var["enable_HIO"] = False
+        if dev_var.get("beta") is None:
+            dev_var["beta"] = 0.0
+        else:
+            dev_var["enable_HIO"] = True
+        if dev_var.get("search_invacuo") is None:
+            dev_var["search_invacuo"] = False
+        if dev_var.get("ksol") is None:
+            if dev_var.get("search_invacuo"):
+                dev_var["ksol"] = 0.334
+            else:
+                dev_var["ksol"] = 0.0
+        if dev_var.get("Bsol") is None:
+            if dev_var.get("search_invacuo"):
+                dev_var["Bsol"] = 75
+            else:
+                dev_var["Bsol"] = 0.0
+        if dev_var.get("iv_step") is None:
+            if dev_var.get("search_invacuo"):
+                dev_var["iv_step"] = 1
+            else:
+                dev_var["iv_step"] = 1000
+        if dev_var.get("enable_scale_F_search") is None:
+            dev_var["enable_scale_F_search"] = False
+        if dev_var.get("enable_RAAR") is None:
+            dev_var["enable_RAAR"] = False
+        if dev_var.get("histmatch") is None:
+            dev_var["histmatch"] = False
+        if dev_var.get("scale_ne") is None:
+            dev_var["scale_ne"] = False
+
+        print("dev_var was passed and all defaults not defined were set.")
+    args.dev_var = dev_var
+        # exit()
 
     if args.plot:
         #if plotting is enabled, try to import matplotlib
