@@ -1261,7 +1261,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
         idx_search = pdb2SES(pdb_known,pdb_search,x,y,z)
 
-        # write_mrc(np.ones_like(rho_known)*idx_search, side, "test_new_idx_search.mrc")
+        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
 
         # idx_search = pdb2support_fast(pdb_search,x,y,z,radius=np.zeros(pdb_search.natoms),probe=search_radius)
 
@@ -1310,6 +1310,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         print(pdb2mrc_ligand.rho0, pdb2mrc_ligand.shell_contrast)
         idx_ligand = pdb2support_fast(pdb_ligand,x,y,z)
         ligand_volume = idx_ligand.sum()*dV
+
+        write_mrc(rho_ligand, side, fprefix+"_ligtrue.mrc")
 
         #generate holo density for calculating scattering profile
         rho_holo = rho_known + rho_ligand
@@ -1541,9 +1543,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if DENSS_HR:
             rho_known = cp.array(rho_known)
 
-    import matplotlib.pyplot as plt
-    Amp3D_temp = np.zeros((len(F_known[qbin_labels==2]),steps))
-
 
     for j in range(steps):
         if abort_event is not None:
@@ -1631,7 +1630,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if DENSS_HR:
 
             if enable_HIO:
-                if (j<100) or (j%100==0) or (j>steps-100): 
+                if (j<200) or (j%100==0) or (j>steps-1000): 
                     ER =  True
                     HIO =  False
                 else:
@@ -4897,32 +4896,6 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     support[labeled_support!=num_feature_to_keep] = False
 
     support_ravel = support.ravel()
-
-    #If the above fails,
-    #grab the feature number that corresponds to the largest feature instead
-    #Defining the largest feature
-    # Sum the features, this will define the largest
-    # sums = np.zeros((num_features))
-    # for feature in range(num_features+1):
-    #     sums[feature-1] = np.sum(support[labeled_support==feature])
-    # big_feature = np.argmax(sums)+1
-
-    # #order the indices of the features in descending order based on their sum/total density
-    # sums_order = np.argsort(sums)[::-1]
-    # sums_sorted = sums[sums_order]
-    # #now grab the actual feature numbers (rather than the indices)
-    # features_sorted = sums_order + 1
-
-    # #remove features from the support that are not the primary feature
-    # # support[labeled_support != big_feature] = False
-    # #reset support to zeros everywhere
-    # #then progressively add in regions of support up to num_features_to_keep
-    # idx_search *= False
-    # for feature in range(num_features_to_keep):
-    #     idx_search[labeled_support == features_sorted[feature]] = True
-
-    # support = support_ravel.reshape(n,n,n)
-    # write_mrc(np.ones((n,n,n))*support,side,"test_new_idx_search_02.mrc")
 
     ##One more cdist of new grid to circle grid to expand new grid by the radius of a water molecule
     # ngridpoints = len(grid)
