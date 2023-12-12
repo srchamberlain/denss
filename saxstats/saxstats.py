@@ -1203,6 +1203,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         scale_F_search_factors = dev_var['enable_scale_F_search']
         # scale_F_search_factors = False
         enable_RAAR = dev_var['enable_RAAR']
+        p_steps = dev_var["p_steps"]
 
         ## HIO works well with in-vacuo simulated density but not as well with 
         # protein and ligand in contrast. 
@@ -1664,7 +1665,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search_invacuo[rho_search_invacuo<0]=0.0
 
             #enforce positivity by making all negative density points zero in search.
-            if (positivity):# & (j<1000): #& (j%50==0): # and (j in positivity_steps):
+            if (positivity) & (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 if enable_search_invacuo and j%iv_step==0:
                     rho_search_invacuo[rho_search_invacuo<0] = 0.0
                 else:
