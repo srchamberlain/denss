@@ -1652,7 +1652,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             ##--------Applying real space restraints to F_search_invacuo--------##
             if enable_search_invacuo and j%iv_step==0:
-                old_rho_search_invacuo = xp.copy(rho_search_invacuo)
+                if DENSS_GPU:
+                    rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
+                old_rho_search_invacuo = np.copy(rho_search_invacuo)
+                if DENSS_GPU:
+                    rho_search_invacuo=cp.array(rho_search_invacuo)
                 F_search = myfftn(rho_search)
                 F_search_invacuo = F_search/(1-ksolBsol)
                 rho_search_invacuo = myifftn(F_search_invacuo).real
