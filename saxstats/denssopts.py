@@ -107,6 +107,7 @@ def parse_arguments(parser):
         dev_var["iv_step"] = 1000
         dev_var["scale_ne"] = False
         dev_var["p_steps"] = 0
+        dev_var["idx_probe"] = 1.4
 
         # exit()
     else:
@@ -146,6 +147,8 @@ def parse_arguments(parser):
             dev_var["scale_ne"] = False
         if dev_var.get("p_steps") is None:
             dev_var["p_steps"] = 0
+        if dev_var["idx_probe"] is None:
+            dev_var["idx_probe"] = 1.4
 
 
         print("dev_var was passed and all defaults not defined were set.")

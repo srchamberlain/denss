@@ -1204,6 +1204,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         # scale_F_search_factors = False
         enable_RAAR = dev_var['enable_RAAR']
         p_steps = dev_var["p_steps"]
+        idx_probe = dev_var["idx_probe"]
+
 
         ## HIO works well with in-vacuo simulated density but not as well with 
         # protein and ligand in contrast. 
@@ -1258,22 +1260,27 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
         pdb_search = PDB(pdb_fn_search)
-        #idx search based on distance from search coordinates
-        search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
-        idx_search = pdb2SES(pdb_known,pdb_search,x,y,z)
-
+        idx_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe)
         write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
 
+        #old idx search based on distance from search coordinates
+        #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
         # idx_search = pdb2support_fast(pdb_search,x,y,z,radius=np.zeros(pdb_search.natoms),probe=search_radius)
+
+        #retest without removing idx_known from idxsearch
+        #in reality, some side chains could be within the search space
+        #and we do not want to set that to zero even if it lies within the search space
 
         #modify idx of known region to accomodate search region
         #in case search region overlaps known region
-        idx_known[idx_search] = False
-        #clean up density
-        rho_known[~idx_known] = 0
+        # idx_known[idx_search] = False
 
+        #clean up density
+        # rho_known[~idx_known] = 0
+
+        ######Flag for later test#####
         #remove known voxels from search space
-        idx_search[idx_known] = False
+        # idx_search[idx_known] = False
 
         ##Fill new defined search space with random density
         rho_search = prng.random_sample(size=rho_known.shape)
@@ -1314,6 +1321,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         write_mrc(rho_ligand, side, fprefix+"_ligtrue.mrc")
 
+
+
         #generate holo density for calculating scattering profile
         rho_holo = rho_known + rho_ligand
         idx_holo = idx_known + idx_search
@@ -1336,6 +1345,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ne_ligand_neg = np.sum(rho_ligand[rho_ligand<0])
         emax_ligand = np.max(rho_ligand)
         print('Number of electrons in ligand: %.2f' % (ne_ligand))
+
+        #Clear up some memory
+        del rho_ligand_invacuo, rho_ligand_exvol, idx_ligand
 
         #calculate structure factors (F), 3D intensities (I3D), and 1D spherical averages, i.e. SWAXS (Imean)
         F_holo = myfftn(rho_holo)
@@ -4855,6 +4867,7 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     dx = side/n
     center = center_pdb.coords
     xyz = np.column_stack((x.ravel(),y.ravel(),z.ravel()))
+    r_water = 1.4
 
     support_ravel = support.ravel()
 
@@ -4875,13 +4888,15 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     grid = xyz[support_ravel]
     grid_support = np.ones_like(grid[:,0])
 
-    # #Next, need to calculate the distance of each grid point to each protein atom, but subtract the vdW 
-    # #radius of each atom from that distance. if any dist-VdW<1.4, exclude from support. 
+    # #Next, need to calculate the distance of each grid point to each protein atom.
+    # If the grid point is within the vdW+r_water, a water molecule can't
+    # be placed there. so subtract the vdW radius
+    # of each atom from the distance. if any dist-VdW<r_water, exclude from support. 
     natoms = pdb.natoms
     for i in range(natoms):
         dist1 = spatial.distance.cdist(pdb.coords[None,i], grid)
         dist1 -= pdb.vdW[i]
-        grid_support[dist1[0,:]<probe] = False
+        grid_support[dist1[0,:]<r_water] = False
 
     support_ravel[dist[:,0]<=radius] = grid_support
     support = support_ravel.reshape(n,n,n)
@@ -4902,7 +4917,9 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
 
     support_ravel = support.ravel()
 
-    ##One more cdist of new grid to circle grid to expand new grid by the radius of a water molecule
+    ##One more cdist of new grid to circle grid to expand new grid by the radius of a probe.
+    # by default, the probe is a water molecule, creating the SES. If a larger probe size is passed, this
+    # will expand the search space to include some part of the side chains. 
     # ngridpoints = len(grid)
     grid2 = xyz[support_ravel]
     grid2_support = np.zeros_like(grid[:,0])
