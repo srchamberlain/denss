@@ -147,7 +147,7 @@ def parse_arguments(parser):
             dev_var["scale_ne"] = False
         if dev_var.get("p_steps") is None:
             dev_var["p_steps"] = 0
-        if dev_var["idx_probe"] is None:
+        if dev_var.get("idx_probe") is None:
             dev_var["idx_probe"] = 1.4
 
 
