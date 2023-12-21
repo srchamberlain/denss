@@ -1321,8 +1321,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         write_mrc(rho_ligand, side, fprefix+"_ligtrue.mrc")
 
-
-
         #generate holo density for calculating scattering profile
         rho_holo = rho_known + rho_ligand
         idx_holo = idx_known + idx_search
@@ -1417,8 +1415,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             #set the number of electrons in the ligand search space
             #This will need to be changed when no longer reading in ligand pdb
             # rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
-            # rho_search *= ne_ligand/np.sum(rho_search)
-            rho_search *= emax_ligand/np.max(rho_search)
+            rho_search *= ne_ligand/np.sum(rho_search)
+            # rho_search *= emax_ligand/np.max(rho_search)
             # rho_search *= 1
         print('Number of electrons in search space: %.2f' % (rho_search.sum()))
 
