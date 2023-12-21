@@ -1416,9 +1416,13 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             enable_search_invacuo = False
             #set the number of electrons in the ligand search space
             #This will need to be changed when no longer reading in ligand pdb
-            rho_search *= ne_ligand/np.sum(rho_search)
-            # rho_search *= emax_ligand/np.max(rho_search)
+            # rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
+            # rho_search *= ne_ligand/np.sum(rho_search)
+            rho_search *= emax_ligand/np.max(rho_search)
+            # rho_search *= 1
         print('Number of electrons in search space: %.2f' % (rho_search.sum()))
+
+        write_mrc(rho_search, side, fprefix+"_search_start.mrc")
 
         #---------end of development section---------------#
 
@@ -1683,6 +1687,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 else:
                     # rho_search[rho_search<rho_known_min] = rho_known_min
                     rho_search[rho_search<0] = 0.0
+            elif (positivity) and enable_search_invacuo and j%iv_step==0:
+                    rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
             #if enabled, attempt to progressively update search space with shrinkwrap
             search_volume = idx_search.sum() * dV
@@ -4914,6 +4920,9 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     num_feature_to_keep = np.bincount(center_feature).argmax()
     #Grab only center feature
     support[labeled_support!=num_feature_to_keep] = False
+
+    ##At this point we have the solvent accessable surface
+    SAS = np.copy(support)
 
     support_ravel = support.ravel()
 
