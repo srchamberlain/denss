@@ -1260,8 +1260,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
         pdb_search = PDB(pdb_fn_search)
-        idx_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe)
-        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
+        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe)
+        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
         #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
@@ -1285,6 +1286,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ##Fill new defined search space with random density
         rho_search = prng.random_sample(size=rho_known.shape)
         rho_search[~idx_search] = 0
+        #try making just the sas surface full of random density to start
+        # rho_search[~sas_search] = 0
         ###Will need a new method for scaling this up instead of using electrons from the ligand
         #density map
 
@@ -1414,10 +1417,12 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             enable_search_invacuo = False
             #set the number of electrons in the ligand search space
             #This will need to be changed when no longer reading in ligand pdb
-            # rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
-            rho_search *= ne_ligand/np.sum(rho_search)
+            rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
+            # rho_search *= ne_ligand/np.sum(rho_search)
             # rho_search *= emax_ligand/np.max(rho_search)
-            # rho_search *= 1
+            # rho_search[sas_search] = 1
+            # rho_search[sas_search] += 0.5
+            # rho_search[idx_search] = 1
         print('Number of electrons in search space: %.2f' % (rho_search.sum()))
 
         write_mrc(rho_search, side, fprefix+"_search_start.mrc")
@@ -1680,11 +1685,15 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             #enforce positivity by making all negative density points zero in search.
             if (positivity) & (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
-                if enable_search_invacuo and j%iv_step==0:
-                    rho_search_invacuo[rho_search_invacuo<0] = 0.0
-                else:
-                    # rho_search[rho_search<rho_known_min] = rho_known_min
-                    rho_search[rho_search<0] = 0.0
+                rho_search[rho_search<0] = 0.0
+
+                ##Testing applying positivity first for p_steps, then switching 
+                # to contrast positivity only
+                # if enable_search_invacuo and j%iv_step==0:
+                #     rho_search_invacuo[rho_search_invacuo<0] = 0.0
+                # else:
+                #     # rho_search[rho_search<rho_known_min] = rho_known_min
+                #     rho_search[rho_search<0] = 0.0
             elif (positivity) and enable_search_invacuo and j%iv_step==0:
                     rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
@@ -4920,7 +4929,7 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     support[labeled_support!=num_feature_to_keep] = False
 
     ##At this point we have the solvent accessable surface
-    SAS = np.copy(support)
+    sas = np.copy(support)
 
     support_ravel = support.ravel()
 
@@ -4941,7 +4950,7 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     support = support_ravel.reshape(n,n,n)
     # write_mrc(np.ones((n,n,n))*support,side,"test_new_idx_search_03_2.mrc")
 
-    return support
+    return support, sas
 
 def u2B(u):
     """Calculate B-factor from atomic displacement, u"""
