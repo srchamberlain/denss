@@ -1671,7 +1671,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #sigma is in pixels, not angrstroms
 
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and j%iv_step==0:
+            if enable_search_invacuo and j%iv_step==0 and (j>p_steps):
                 if DENSS_GPU:
                     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 old_rho_search_invacuo = np.copy(rho_search_invacuo)
@@ -1684,7 +1684,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search_invacuo[rho_search_invacuo<0]=0.0
 
             #enforce positivity by making all negative density points zero in search.
-            if (positivity) & (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
+            if (positivity) and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 rho_search[rho_search<0] = 0.0
 
                 ##Testing applying positivity first for p_steps, then switching 
@@ -1709,7 +1709,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 target_cdf = np.copy(cdf_ligand)
                 rho_search[idx_search] = hist_match(rho_search[idx_search],target_cdf)
 
-            if enable_search_invacuo and j%iv_step==0:
+            if enable_search_invacuo and j%iv_step==0 and (j>p_steps):
                 #Recalculate exlcuded volume after real space restraints on the invacuo component
                 # F_search_exvol = ksolBsol*F_search_invacuo
                 # rho_search_exvol = myifftn(F_search_exvol).real
