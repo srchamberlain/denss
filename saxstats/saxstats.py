@@ -1246,6 +1246,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                                             #calc density my with pdb2mrc to generate holo and apo with global B and correction,
                                             #then calc again without the correction, check difference profiles for all cases 
                                             #against one another.
+        print(pdb2mrc_known.global_B)
         #########
         pdb2mrc_known.calculate_invacuo_density()
         pdb2mrc_known.calculate_excluded_volume()
@@ -1363,6 +1364,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
         Imean_known = mybinmean(I3D_known.ravel(), qblravel, xcount, DENSS_GPU=False)
 
+        I3D_holo_data_Bfactor = I3D_holo*np.exp(-2*pdb2mrc_known.global_B*(qr/(4*np.pi))**2)
         #calculate difference scattering profile for testing
         #in experiment, this would be given by the user
         #also, note that here we're using holo - known, but in reality
@@ -1370,7 +1372,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #which will affect some code above, so need to come back later
         #to ensure the proper distinction between known and apo
         Imean_diff = Imean_holo - Imean_known
-        Idata = Imean_holo
+        Idata = Imean_holo 
+        #Idata = mybinmean(I3D_holo_data_Bfactor.ravel(), qblravel, xcount, DENSS_GPU=False)
+        #Try applying a "B factor" ? to the scattering profile (not the same as Bfactor 
+        # to individual terms, so check math for scattering profile application)
+
 
         ##Setting rho_known restaint to only be outside search space. Now residues
         #should be included in true solution holo profile, but now defined in "rho_known"
@@ -1398,6 +1404,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
             rho_search = rho_search_invacuo - rho_search_exvol
+
+            B_invacuo = pdb2mrc_known.global_B
             
             # F_search_invacuo = myfftn(rho_search_invacuo)
             # F_search= F_search_invacuo*(1-ksolBsol)
@@ -1650,7 +1658,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if DENSS_HR:
 
             if enable_HIO:
-                if (j<200) or (j%100==0) or (j>steps-1000): 
+                if (j<500) or (j%100==0) or (j>steps-200): 
                     ER =  True
                     HIO =  False
                 else:
@@ -1661,6 +1669,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 HIO = False
 
             if ER:
+                # rho_search[~sas_search] = 0
                 rho_search[~idx_search] = 0
             if HIO:
                 rho_search[~idx_search] = old_rho_search[~idx_search] - beta*rho_search[~idx_search]
@@ -1671,7 +1680,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #sigma is in pixels, not angrstroms
 
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and j%iv_step==0 and (j>p_steps):
+            if enable_search_invacuo and j%iv_step==0 and (j>p_steps): # and (j<steps-100):
                 if DENSS_GPU:
                     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 old_rho_search_invacuo = np.copy(rho_search_invacuo)
@@ -1679,6 +1688,14 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     rho_search_invacuo=cp.array(rho_search_invacuo)
                 F_search = myfftn(rho_search)
                 F_search_invacuo = F_search/(1-ksolBsol)
+
+                #Test applying a B-factor to F_search_invacuo 
+                #almost exactly like calculating the exvel from invacuo, just not fractioning
+                #with skol
+
+                if j<(500) or j%(iv_step*5)==0:
+                    F_search_invacuo*=np.exp(-B_invacuo* (qr / (4*np.pi))**2)
+
                 rho_search_invacuo = myifftn(F_search_invacuo).real
                 # rho_search_invacuo = xp.copy(rho_search)
                 # rho_search_invacuo[rho_search_invacuo<0]=0.0
@@ -1694,7 +1711,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # else:
                 #     # rho_search[rho_search<rho_known_min] = rho_known_min
                 #     rho_search[rho_search<0] = 0.0
-            elif (positivity) and enable_search_invacuo and j%iv_step==0:
+            elif (positivity) and enable_search_invacuo and j%iv_step==0: # and (j<steps-100):
                     rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
             #if enabled, attempt to progressively update search space with shrinkwrap
@@ -1709,7 +1726,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 target_cdf = np.copy(cdf_ligand)
                 rho_search[idx_search] = hist_match(rho_search[idx_search],target_cdf)
 
-            if enable_search_invacuo and j%iv_step==0 and (j>p_steps):
+            if enable_search_invacuo and j%iv_step==0 and (j>p_steps): # and (j<steps-100):
                 #Recalculate exlcuded volume after real space restraints on the invacuo component
                 # F_search_exvol = ksolBsol*F_search_invacuo
                 # rho_search_exvol = myifftn(F_search_exvol).real
