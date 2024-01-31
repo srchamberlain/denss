@@ -1246,7 +1246,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                                             #calc density my with pdb2mrc to generate holo and apo with global B and correction,
                                             #then calc again without the correction, check difference profiles for all cases 
                                             #against one another.
-        print(pdb2mrc_known.global_B)
+        # print(pdb2mrc_known.global_B)
         #########
         pdb2mrc_known.calculate_invacuo_density()
         pdb2mrc_known.calculate_excluded_volume()
@@ -1354,7 +1354,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #calculate structure factors (F), 3D intensities (I3D), and 1D spherical averages, i.e. SWAXS (Imean)
         F_holo = myfftn(rho_holo)
         F_known = myfftn(rho_known)
-        F_holo = F_known+F_ligand
+        # F_known = myfftn(pdb2mrc_known.rho_invacuo)
+        # F_holo = F_known+F_ligand
         Amp3D_holo = np.abs(F_holo)
         Amp3D_known = np.abs(F_known)
         # phase3D_holo = np.angle(F_holo)
@@ -1364,7 +1365,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
         Imean_known = mybinmean(I3D_known.ravel(), qblravel, xcount, DENSS_GPU=False)
 
-        I3D_holo_data_Bfactor = I3D_holo*np.exp(-2*pdb2mrc_known.global_B*(qr/(4*np.pi))**2)
+        # B = 5.0
+        # I3D_holo_data_Bfactor = I3D_holo*np.exp(-2*B*(qr/(4*np.pi))**2)
         #calculate difference scattering profile for testing
         #in experiment, this would be given by the user
         #also, note that here we're using holo - known, but in reality
@@ -1373,7 +1375,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #to ensure the proper distinction between known and apo
         Imean_diff = Imean_holo - Imean_known
         Idata = Imean_holo 
-        #Idata = mybinmean(I3D_holo_data_Bfactor.ravel(), qblravel, xcount, DENSS_GPU=False)
+        # Idata = mybinmean(I3D_holo_data_Bfactor.ravel(), qblravel, xcount, DENSS_GPU=False)
         #Try applying a "B factor" ? to the scattering profile (not the same as Bfactor 
         # to individual terms, so check math for scattering profile application)
 
@@ -1431,6 +1433,12 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             # rho_search[sas_search] = 1
             # rho_search[sas_search] += 0.5
             # rho_search[idx_search] = 1
+
+        ##Testing giving true solution
+
+        # rho_search = np.copy(rho_ligand)
+
+
         print('Number of electrons in search space: %.2f' % (rho_search.sum()))
 
         write_mrc(rho_search, side, fprefix+"_search_start.mrc")
@@ -1693,7 +1701,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #almost exactly like calculating the exvel from invacuo, just not fractioning
                 #with skol
 
-                if j<(500) or j%(iv_step*5)==0:
+                if j<(1000): # or j%(iv_step*5)==0:
                     F_search_invacuo*=np.exp(-B_invacuo* (qr / (4*np.pi))**2)
 
                 rho_search_invacuo = myifftn(F_search_invacuo).real
