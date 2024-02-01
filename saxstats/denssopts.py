@@ -116,9 +116,11 @@ def parse_arguments(parser):
         dev_var = args.dev_var
         if dev_var.get("enable_HIO") is None:
             dev_var["enable_HIO"] = False
+        if dev_var.get("enable_RAAR") is None:
+            dev_var["enable_RAAR"] = False
         if dev_var.get("beta") is None:
             dev_var["beta"] = 0.0
-        else:
+        elif not dev_var["enable_RAAR"]:
             dev_var["enable_HIO"] = True
         if dev_var.get("search_invacuo") is None:
             dev_var["search_invacuo"] = False
@@ -139,8 +141,6 @@ def parse_arguments(parser):
                 dev_var["iv_step"] = 1000
         if dev_var.get("enable_scale_F_search") is None:
             dev_var["enable_scale_F_search"] = False
-        if dev_var.get("enable_RAAR") is None:
-            dev_var["enable_RAAR"] = False
         if dev_var.get("histmatch") is None:
             dev_var["histmatch"] = False
         if dev_var.get("scale_ne") is None:

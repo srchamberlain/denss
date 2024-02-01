@@ -1664,23 +1664,44 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ##This is where differences will be more major in the code, need to decide how to encorperate 
         #denss-hr changes. 
         if DENSS_HR:
-
             if enable_HIO:
-                if (j<500) or (j%100==0) or (j>steps-200): 
+                if (j<100) or (j%100==0) or (j>steps-100): 
                     ER =  True
                     HIO =  False
                 else:
                     ER = False
                     HIO = True
+            elif enable_RAAR:
+                if (j>steps-100) or (j%100==0): #(j<100) or 
+                    ER =  True
+                    HIO =  False
+                    RAAR = False
+                else:
+                    ER = False
+                    HIO = False
+                    RAAR = True
             else:
                 ER = True
                 HIO = False
+
+            # print(" ")
+            # print(ER)
+            # print(RAAR)
+            # print(HIO)
+            # print(np.sum(rho_search[~idx_search]))
+            # print(np.sum(rho_search[idx_search]))
+            # print()
+
 
             if ER:
                 # rho_search[~sas_search] = 0
                 rho_search[~idx_search] = 0
             if HIO:
                 rho_search[~idx_search] = old_rho_search[~idx_search] - beta*rho_search[~idx_search]
+            if RAAR:
+                # rho_search = beta*old_rho_search - beta*rho_search + (1-beta)*rho_search
+                rho_search[~idx_search] = beta*old_rho_search[~idx_search] - beta*rho_search[~idx_search] + (1-beta)*rho_search[~idx_search]
+                # rho_search[idx_search] = 2*beta*rho_search[idx_search] - beta*old_rho_search[idx_search]
 
             #attempt to "smooth" the density to make it less noisy
             if smooth: #j%500==0 and j==(steps-1):
@@ -1709,9 +1730,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search_invacuo[rho_search_invacuo<0]=0.0
 
             #enforce positivity by making all negative density points zero in search.
-            if (positivity) and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
-                rho_search[rho_search<0] = 0.0
-
+            if (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
+                # rho_search[rho_search<0] = 0.0
+                rho_search[rho_search<-0.334] = 0.0
                 ##Testing applying positivity first for p_steps, then switching 
                 # to contrast positivity only
                 # if enable_search_invacuo and j%iv_step==0:
