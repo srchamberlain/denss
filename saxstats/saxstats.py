@@ -2066,7 +2066,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         qblravel = cp.asnumpy(qblravel)
         xcount = cp.asnumpy(xcount)
         if DENSS_HR:
-            rho_known = cp.asarray(rho_known)
+            rho_known = cp.asnumpy(rho_known)
 
     F = myfftn(rho)
     # F = myrfftn(rho)
