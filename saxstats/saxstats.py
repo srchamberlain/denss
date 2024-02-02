@@ -1447,6 +1447,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         rho = rho_known + rho_search
 
+        newrho = np.zeros_like(rho)
+
     else:
         DENSS_HR = False
 
