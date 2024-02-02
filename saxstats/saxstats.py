@@ -1653,6 +1653,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             old_rho_search = np.copy(rho_search)
             if DENSS_GPU:
                 rho_search = cp.array(rho_search)
+                old_rho_search = cp.array(old_rho_search)
             rho_search = rhoprime - rho_known
 
 
@@ -1725,7 +1726,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #with skol
 
                 if j<(1000): # or j%(iv_step*5)==0:
+                    if DENSS_GPU:
+                        F_search_invacuo=cp.asnumpy(F_search_invacuo)
                     F_search_invacuo*=np.exp(-B_invacuo* (qr / (4*np.pi))**2)
+                    if DENSS_GPU:
+                        F_search_invacuo=cp.array(F_search_invacuo)
 
                 rho_search_invacuo = myifftn(F_search_invacuo).real
                 # rho_search_invacuo = xp.copy(rho_search)
