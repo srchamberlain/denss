@@ -1649,11 +1649,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         if DENSS_HR:
             if DENSS_GPU:
-                rho_search = cp.asnumpy(rho_search)
-            old_rho_search = np.copy(rho_search)
-            if DENSS_GPU:
-                rho_search = cp.array(rho_search)
-                old_rho_search = cp.array(old_rho_search)
+                old_rho_search = cp.copy(rho_search)
+            else:
+                old_rho_search = np.copy(rho_search)
             rho_search = rhoprime - rho_known
 
 
@@ -1713,11 +1711,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             ##--------Applying real space restraints to F_search_invacuo--------##
             if enable_search_invacuo and j%iv_step==0 and (j>p_steps): # and (j<steps-100):
-                if DENSS_GPU:
-                    rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
-                old_rho_search_invacuo = np.copy(rho_search_invacuo)
-                if DENSS_GPU:
-                    rho_search_invacuo=cp.array(rho_search_invacuo)
+                # if DENSS_GPU:
+                #     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
+                # old_rho_search_invacuo = np.copy(rho_search_invacuo)
+                # if DENSS_GPU:
+                #     rho_search_invacuo=cp.array(rho_search_invacuo)
                 F_search = myfftn(rho_search)
                 F_search_invacuo = F_search/(1-ksolBsol)
 
@@ -1739,7 +1737,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             #enforce positivity by making all negative density points zero in search.
             if (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<0] = 0.0
-                rho_search[rho_search<-0.334] = 0.0
+                rho_search[rho_search<-0.334] = -0.334
                 ##Testing applying positivity first for p_steps, then switching 
                 # to contrast positivity only
                 # if enable_search_invacuo and j%iv_step==0:
