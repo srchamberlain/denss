@@ -1774,6 +1774,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search = rho_search_invacuo - rho_search_exvol
                 rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
                 rho_search = rho_search_invacuo - rho_search_exvol
+                if DENSS_GPU:
+                        rho_search=cp.array(rho_search)
 
             # if enforce_connectivity and j in enforce_connectivity_steps:
             #     if DENSS_GPU:
