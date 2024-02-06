@@ -1205,7 +1205,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         enable_RAAR = dev_var['enable_RAAR']
         p_steps = dev_var["p_steps"]
         idx_probe = dev_var["idx_probe"]
-
+        scale_ne = dev_var["scale_ne"]
+        neg_thresh = dev_var["neg_thresh"]
 
         ## HIO works well with in-vacuo simulated density but not as well with 
         # protein and ligand in contrast. 
@@ -1407,6 +1408,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
             rho_search = rho_search_invacuo - rho_search_exvol
 
+            B_smooth = dev_var["B_smooth"]
             B_invacuo = pdb2mrc_known.global_B
             
             # F_search_invacuo = myfftn(rho_search_invacuo)
@@ -1709,8 +1711,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
                 #sigma is in pixels, not angrstroms
 
+            if scale_ne:
+                rho_search *= emax_ligand / rho_search[idx_search].max()
+
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and j%iv_step==0 and (j>p_steps): # and (j<steps-100):
+            if enable_search_invacuo and j%iv_step==0 and (j<steps-1000): # and (j<steps-100):
                 # if DENSS_GPU:
                 #     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 # old_rho_search_invacuo = np.copy(rho_search_invacuo)
@@ -1723,7 +1728,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #almost exactly like calculating the exvel from invacuo, just not fractioning
                 #with skol
 
-                if j<(1000): # or j%(iv_step*5)==0:
+                if B_smooth: # or j%(iv_step*5)==0:
                     if DENSS_GPU:
                         F_search_invacuo=cp.asnumpy(F_search_invacuo)
                     F_search_invacuo*=np.exp(-B_invacuo* (qr / (4*np.pi))**2)
@@ -1808,7 +1813,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             # rescale the search density so that it has the correct number of electrons
             # based on the expected ligand electron count (or alternatively based on maximum density)
-            scale_ne = dev_var["scale_ne"]
             # scale_ne = True #only do any scaling if desired
             new_ne_scaling = False
             if new_ne_scaling and scale_ne:
@@ -1818,10 +1822,10 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     # rho_search[rho_search<0] *= ne_ligand / rho_search[rho_search<0].sum()
                 else:
                     rho_search *= ne_ligand / rho_search[idx_search].sum()
-            elif scale_ne and ER: #and j%500==0:
-                # rho_search *= ne_ligand / rho_search[idx_search].sum()
-                rho_search[rho_search>0] *= ne_ligand_pos / rho_search[rho_search>0].sum()
-                rho_search[rho_search<0] *= ne_ligand_neg / rho_search[rho_search<0].sum()
+            # elif scale_ne: #and j%500==0:
+            #     # rho_search *= ne_ligand / rho_search[idx_search].sum()
+            #     rho_search[rho_search>0] *= ne_ligand_pos / rho_search[rho_search>0].sum()
+            #     rho_search[rho_search<0] *= ne_ligand_neg / rho_search[rho_search<0].sum()
 
             newrho = rho_known + rho_search
 
