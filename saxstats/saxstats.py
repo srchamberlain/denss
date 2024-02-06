@@ -1582,6 +1582,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         xcount = cp.array(xcount)
         if DENSS_HR:
             rho_known = cp.array(rho_known)
+            if enable_search_invacuo:
+                ksolBsol = cp.array(ksolBsol)
 
 
     for j in range(steps):
@@ -1715,7 +1717,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search *= emax_ligand / rho_search[idx_search].max()
 
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and j%iv_step==0 and (j<steps-1000): # and (j<steps-100):
+            if enable_search_invacuo and j%iv_step==0 and (j>steps-1000): # and (j<steps-100):
                 # if DENSS_GPU:
                 #     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 # old_rho_search_invacuo = np.copy(rho_search_invacuo)
