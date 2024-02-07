@@ -1742,7 +1742,10 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search_invacuo[rho_search_invacuo<0]=0.0
 
             #enforce positivity by making all negative density points zero in search.
-            if (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
+            
+            if (positivity) and enable_search_invacuo and j%iv_step==0 and (j>steps-1000):
+                    rho_search_invacuo[rho_search_invacuo<0] = 0.0
+            elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<0] = 0.0
                 # rho_search[rho_search<-0.334] = -0.334
                 rho_search[rho_search<-0.334] = neg_thresh
@@ -1753,8 +1756,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # else:
                 #     # rho_search[rho_search<rho_known_min] = rho_known_min
                 #     rho_search[rho_search<0] = 0.0
-            elif (positivity) and enable_search_invacuo and j%iv_step==0: # and (j<steps-100):
-                    rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
             #if enabled, attempt to progressively update search space with shrinkwrap
             search_volume = idx_search.sum() * dV
