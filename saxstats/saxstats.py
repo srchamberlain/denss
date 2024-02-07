@@ -1744,7 +1744,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             #enforce positivity by making all negative density points zero in search.
             if (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<0] = 0.0
-                rho_search[rho_search<-0.334] = -0.334
+                # rho_search[rho_search<-0.334] = -0.334
+                rho_search[rho_search<-0.334] = neg_thresh
                 ##Testing applying positivity first for p_steps, then switching 
                 # to contrast positivity only
                 # if enable_search_invacuo and j%iv_step==0:
@@ -1772,6 +1773,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # F_search_exvol = ksolBsol*F_search_invacuo
                 # rho_search_exvol = myifftn(F_search_exvol).real
                 # rho_search = rho_search_invacuo - rho_search_exvol
+                if DENSS_GPU:
+                        rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
                 rho_search = rho_search_invacuo - rho_search_exvol
                 if DENSS_GPU:
