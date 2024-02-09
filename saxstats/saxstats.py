@@ -1713,11 +1713,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
                 #sigma is in pixels, not angrstroms
 
-            if scale_ne:
+            if scale_ne and j%100==0:
                 rho_search *= emax_ligand / rho_search[idx_search].max()
 
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and j%iv_step==0 and (j>steps-1000): # and (j<steps-100):
+            if enable_search_invacuo and (j%iv_step==0) and (j>steps-1000): # and (j<steps-100):
                 # if DENSS_GPU:
                 #     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 # old_rho_search_invacuo = np.copy(rho_search_invacuo)
