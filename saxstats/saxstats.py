@@ -1743,7 +1743,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             #enforce positivity by making all negative density points zero in search.
             
-            if (positivity) and enable_search_invacuo and j%iv_step==0 and (j>steps-1000):
+            if (positivity) and enable_search_invacuo and (j%iv_step==0) and (j>steps-1000):
                     rho_search_invacuo[rho_search_invacuo<0] = 0.0
             elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<0] = 0.0
@@ -1769,7 +1769,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 target_cdf = np.copy(cdf_ligand)
                 rho_search[idx_search] = hist_match(rho_search[idx_search],target_cdf)
 
-            if enable_search_invacuo and j%iv_step==0 and (j>p_steps): # and (j<steps-100):
+            if enable_search_invacuo and j%iv_step==0 and (j>steps-1000): # and (j<steps-100):
                 #Recalculate exlcuded volume after real space restraints on the invacuo component
                 # F_search_exvol = ksolBsol*F_search_invacuo
                 # rho_search_exvol = myifftn(F_search_exvol).real
