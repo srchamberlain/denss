@@ -1755,7 +1755,12 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             #attempt to "smooth" the density to make it less noisy
             if smooth and j==3000: #j%500==0 and j==(steps-1):
+                if DENSS_GPU:
+                    rho_search=cp.asnumpy(rho_search)
                 rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
+                if DENSS_GPU:
+                        rho_search=cp.array(rho_search)
+
                 #sigma is in pixels, not angrstroms
 
             #if enabled, attempt to progressively update search space with shrinkwrap
