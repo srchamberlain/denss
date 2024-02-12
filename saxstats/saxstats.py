@@ -1187,7 +1187,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         # swV_decay = 0.9
         # enforce_connectivity_steps = [1000]
         recenter = False
-        smooth = False
+        # smooth = True
         clip_density = False
 
         #Some of these are for development purposes.
@@ -1207,6 +1207,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_probe = dev_var["idx_probe"]
         scale_ne = dev_var["scale_ne"]
         neg_thresh = dev_var["neg_thresh"]
+        smooth = dev_var["smooth"]
 
         ## HIO works well with in-vacuo simulated density but not as well with 
         # protein and ligand in contrast. 
@@ -1708,11 +1709,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search[~idx_search] = beta*old_rho_search[~idx_search] - beta*rho_search[~idx_search] + (1-beta)*rho_search[~idx_search]
                 # rho_search[idx_search] = 2*beta*rho_search[idx_search] - beta*old_rho_search[idx_search]
 
-            #attempt to "smooth" the density to make it less noisy
-            if smooth: #j%500==0 and j==(steps-1):
-                rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
-                #sigma is in pixels, not angrstroms
-
             if scale_ne and j%100==0:
                 rho_search *= emax_ligand / rho_search[idx_search].max()
 
@@ -1756,6 +1752,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # else:
                 #     # rho_search[rho_search<rho_known_min] = rho_known_min
                 #     rho_search[rho_search<0] = 0.0
+
+            #attempt to "smooth" the density to make it less noisy
+            if smooth and j==3000: #j%500==0 and j==(steps-1):
+                rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
+                #sigma is in pixels, not angrstroms
 
             #if enabled, attempt to progressively update search space with shrinkwrap
             search_volume = idx_search.sum() * dV

@@ -109,7 +109,8 @@ def parse_arguments(parser):
         dev_var["p_steps"] = 0
         dev_var["idx_probe"] = 1.4
         dev_var["B_smooth"] = False
-        dev_var["neg_thresh"] = -0.334
+        dev_var["neg_thresh"] = 0.0
+        dev_var["smooth"] = False
 
         # exit()
     else:
@@ -154,8 +155,9 @@ def parse_arguments(parser):
         if dev_var.get("idx_probe") is None:
             dev_var["idx_probe"] = 1.4
         if dev_var.get("neg_thresh") is None:
-            dev_var["neg_thresh"] = -0.334
-
+            dev_var["neg_thresh"] = 0.0
+        if dev_var.get("smooth") is None:
+            dev_var["smooth"] = False
 
         print("dev_var was passed and all defaults not defined were set.")
     args.dev_var = dev_var
