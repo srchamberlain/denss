@@ -1757,7 +1757,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 if DENSS_GPU:
                     rho_search=cp.asnumpy(rho_search)
                 # rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
-                rho_search[~sas_search] = ndimage.gaussian_filter(rho_search[~sas_search],sigma=2.0)
+                rho_search[~sas_search] = ndimage.gaussian_filter(rho_search[~sas_search],sigma=1.0)
                 if DENSS_GPU:
                         rho_search=cp.array(rho_search)
 
