@@ -1405,6 +1405,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             ksolBsol = ksol*np.exp(-Bsol*(qr/(4*np.pi))**2)
 
             sigma = np.sqrt(Bsol)/(2*np.sqrt(2)*np.pi)
+            # print(sigma)
 
             rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
             rho_search = rho_search_invacuo - rho_search_exvol
@@ -1671,7 +1672,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #denss-hr changes. 
         if DENSS_HR:
             if enable_HIO:
-                if (j<100) or (j%100==0) or (j>steps-100): 
+                if (j<200) or (j%100==0) or (j>steps-200): 
                     ER =  True
                     HIO =  False
                 else:
@@ -1713,14 +1714,18 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search *= emax_ligand / rho_search[idx_search].max()
 
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and (j%iv_step==0) and (j>steps-1000): # and (j<steps-100):
+            if enable_search_invacuo and (j%iv_step==0): # and (j>2000): # and (j<steps-100):
                 # if DENSS_GPU:
                 #     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
                 # old_rho_search_invacuo = np.copy(rho_search_invacuo)
                 # if DENSS_GPU:
                 #     rho_search_invacuo=cp.array(rho_search_invacuo)
+
                 F_search = myfftn(rho_search)
                 F_search_invacuo = F_search/(1-ksolBsol)
+
+                # rho_search_invacuo = np.copy(rho_search)
+                # rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
                 #Test applying a B-factor to F_search_invacuo 
                 #almost exactly like calculating the exvel from invacuo, just not fractioning
@@ -1739,25 +1744,20 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             #enforce positivity by making all negative density points zero in search.
             
-            if (positivity) and enable_search_invacuo and (j%iv_step==0) and (j>steps-1000):
-                    rho_search_invacuo[rho_search_invacuo<0] = 0.0
+            if (positivity) and enable_search_invacuo and (j%iv_step==0): # and (j>2000):
+                rho_search_invacuo[rho_search_invacuo<0] = 0.0
             elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<0] = 0.0
                 # rho_search[rho_search<-0.334] = -0.334
                 rho_search[rho_search<-0.334] = neg_thresh
-                ##Testing applying positivity first for p_steps, then switching 
-                # to contrast positivity only
-                # if enable_search_invacuo and j%iv_step==0:
-                #     rho_search_invacuo[rho_search_invacuo<0] = 0.0
-                # else:
-                #     # rho_search[rho_search<rho_known_min] = rho_known_min
-                #     rho_search[rho_search<0] = 0.0
-
+                ##test sign flipping right after positivity
+                
             #attempt to "smooth" the density to make it less noisy
-            if smooth and j==3000: #j%500==0 and j==(steps-1):
+            if smooth and j%2000==0: #j%500==0 and j==(steps-1):
                 if DENSS_GPU:
                     rho_search=cp.asnumpy(rho_search)
-                rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
+                # rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
+                rho_search[~sas_search] = ndimage.gaussian_filter(rho_search[~sas_search],sigma=2.0)
                 if DENSS_GPU:
                         rho_search=cp.array(rho_search)
 
@@ -1775,7 +1775,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 target_cdf = np.copy(cdf_ligand)
                 rho_search[idx_search] = hist_match(rho_search[idx_search],target_cdf)
 
-            if enable_search_invacuo and j%iv_step==0 and (j>steps-1000): # and (j<steps-100):
+            if enable_search_invacuo and j%iv_step==0: # and (j>2000): # and (j<steps-100):
                 #Recalculate exlcuded volume after real space restraints on the invacuo component
                 # F_search_exvol = ksolBsol*F_search_invacuo
                 # rho_search_exvol = myifftn(F_search_exvol).real
