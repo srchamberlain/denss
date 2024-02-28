@@ -111,6 +111,7 @@ def parse_arguments(parser):
         dev_var["B_smooth"] = False
         dev_var["neg_thresh"] = -0.334
         dev_var["smooth"] = False
+        dev_var["shift"] = False
 
         # exit()
     else:
@@ -158,6 +159,8 @@ def parse_arguments(parser):
             dev_var["neg_thresh"] = -0.334
         if dev_var.get("smooth") is None:
             dev_var["smooth"] = False
+        if dev_var.get("shift") is None:
+            dev_var["shift"] = False
 
         print("dev_var was passed and all defaults not defined were set.")
     args.dev_var = dev_var

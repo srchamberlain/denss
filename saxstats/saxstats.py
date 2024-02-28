@@ -1166,6 +1166,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         seed = int(seed)
 
     prng = np.random.RandomState(seed)
+    coord_shift = prng.rand(3)
+    print(coord_shift)
 
     # pdb_fn_known = None
     if pdb_fn_known is not None:
@@ -1208,6 +1210,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         scale_ne = dev_var["scale_ne"]
         neg_thresh = dev_var["neg_thresh"]
         smooth = dev_var["smooth"]
+        shift = dev_var["shift"]
 
         ## HIO works well with in-vacuo simulated density but not as well with 
         # protein and ligand in contrast. 
@@ -1233,6 +1236,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         pdb_known = PDB(pdb_fn_known)
         print()
         print("Calculating density map of known structure.")
+
+        ##could try shifting all pdb's by <1A before converting to density or search space
+        if shift:
+            pdb_known.coords+=coord_shift
+
         pdb2mrc_known = PDB2MRC(
             pdb=pdb_known,
             center_coords=False,
@@ -1258,14 +1266,18 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_known = pdb2support_fast(pdb_known,x,y,z)
         rho_known_min = rho_known.min()
 
-        write_mrc(np.ones_like(rho_known)*idx_known, side, fprefix+"_idxknown.mrc")
+        # write_mrc(np.ones_like(rho_known)*idx_known, side, fprefix+"_idxknown.mrc")
 
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
         pdb_search = PDB(pdb_fn_search)
+
+        if shift:
+            pdb_search.coords+=coord_shift
+
         idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe)
-        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
-        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
+        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
+        write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
         #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
@@ -1300,6 +1312,10 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         print()
         print("Calculating density map of ligand structure - for development purposes.")
         pdb_ligand = PDB(pdb_fn_ligand)
+
+        if shift:
+            pdb_ligand.coords+=coord_shift
+
         pdb2mrc_ligand = PDB2MRC(
             pdb=pdb_ligand,
             center_coords=False,
@@ -1710,8 +1726,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search[~idx_search] = beta*old_rho_search[~idx_search] - beta*rho_search[~idx_search] + (1-beta)*rho_search[~idx_search]
                 # rho_search[idx_search] = 2*beta*rho_search[idx_search] - beta*old_rho_search[idx_search]
 
-            if scale_ne and j%100==0:
-                rho_search *= emax_ligand / rho_search[idx_search].max()
+            if scale_ne and j>1000:
+                rho_search[idx_search] *= emax_ligand / rho_search[idx_search].max()
 
             ##--------Applying real space restraints to F_search_invacuo--------##
             if enable_search_invacuo and (j%iv_step==0): # and (j>2000): # and (j<steps-100):
@@ -1750,14 +1766,22 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search[rho_search<0] = 0.0
                 # rho_search[rho_search<-0.334] = -0.334
                 rho_search[rho_search<-0.334] = neg_thresh
-                ##test sign flipping right after positivity
+                ##test sign flipping right after "positivity"
+                # if j%500==1:
+                #     search_space_threshold = 0.1*rho_search.max()
+                #     rho_search_outside = rho_search[~idx_search]
+                #     rho_search_outside[np.abs(rho_search_outside)<search_space_threshold] *= -1.0
+                #     rho_search[~idx_search]=rho_search_outside
                 
             #attempt to "smooth" the density to make it less noisy
-            if smooth and j%2000==0: #j%500==0 and j==(steps-1):
+            if smooth and j%2000==0 and j>10: #j%500==0 and j==(steps-1):
                 if DENSS_GPU:
                     rho_search=cp.asnumpy(rho_search)
+                rho_search_smooth = np.copy(rho_search)
+                rho_search_smooth[sas_search] = 0.0
                 # rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
-                rho_search[~sas_search] = ndimage.gaussian_filter(rho_search[~sas_search],sigma=2.0)
+                rho_search_smooth = ndimage.gaussian_filter(rho_search_smooth,sigma=1.0)
+                rho_search[~sas_search] = rho_search_smooth[~sas_search]
                 if DENSS_GPU:
                         rho_search=cp.array(rho_search)
 
@@ -2101,6 +2125,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
     if DENSS_HR:
         rho_search = rho-rho_known
+
+    ##shift maps back
+    if shift:
+        rho_search = ndimage.interpolation.shift(rho_search, -coord_shift, mode='wrap')
+        rho_known = ndimage.interpolation.shift(rho_known, -coord_shift, mode='wrap')
 
     #negative images yield the same scattering, so flip the image
     #to have more positive than negative values if necessary
