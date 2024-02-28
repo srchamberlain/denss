@@ -1210,7 +1210,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         scale_ne = dev_var["scale_ne"]
         neg_thresh = dev_var["neg_thresh"]
         smooth = dev_var["smooth"]
+        smooth_step = dev_var["smooth_step"]
         shift = dev_var["shift"]
+        rho0 = dev_var["rho0"]
+        shell = dev_var["shell"]
+
 
         ## HIO works well with in-vacuo simulated density but not as well with 
         # protein and ligand in contrast. 
@@ -1247,8 +1251,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             voxel=dx,
             side=side,
             nsamples=n,
-            rho0=0.334,
-            shell_contrast=0.019)
+            rho0=rho0,
+            shell_contrast=shell)
         pdb2mrc_known.scale_radii()
         pdb2mrc_known.make_grids()
         #Inserted for testing
@@ -1276,8 +1280,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             pdb_search.coords+=coord_shift
 
         idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe)
-        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
-        write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
         #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
@@ -1322,8 +1326,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             voxel=dx,
             side=side,
             nsamples=n,
-            rho0=0.334,  ##if rho0=0, we should be able to use positivity, since should all be positive inside search space
-            shell_contrast=0.0)
+            rho0=rho0,  ##if rho0=0, we should be able to use positivity, since should all be positive inside search space
+            shell_contrast=shell)
         pdb2mrc_ligand.scale_radii()
         pdb2mrc_ligand.make_grids()
         #added for testing
@@ -1765,7 +1769,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
                 # rho_search[rho_search<0] = 0.0
                 # rho_search[rho_search<-0.334] = -0.334
-                rho_search[rho_search<-0.334] = neg_thresh
+                rho_search[rho_search<neg_thresh] = neg_thresh
                 ##test sign flipping right after "positivity"
                 # if j%500==1:
                 #     search_space_threshold = 0.1*rho_search.max()
@@ -1774,7 +1778,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #     rho_search[~idx_search]=rho_search_outside
                 
             #attempt to "smooth" the density to make it less noisy
-            if smooth and j%2000==0 and j>10: #j%500==0 and j==(steps-1):
+            if smooth and j%smooth_step==0 and j>10: #j%500==0 and j==(steps-1):
                 if DENSS_GPU:
                     rho_search=cp.asnumpy(rho_search)
                 rho_search_smooth = np.copy(rho_search)
