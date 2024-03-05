@@ -1767,9 +1767,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             if (positivity) and enable_search_invacuo and (j%iv_step==0): # and (j>2000):
                 rho_search_invacuo[rho_search_invacuo<0] = 0.0
             elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
-                # rho_search[rho_search<0] = 0.0
-                # rho_search[rho_search<-0.334] = -0.334
-                rho_search[rho_search<neg_thresh] = neg_thresh
+                if j<p_steps: 
+                    rho_search[rho_search<0] = 0.0
+                    # rho_search[rho_search<-0.334] = -0.334
+                else:
+                    rho_search[rho_search<neg_thresh] = neg_thresh
                 ##test sign flipping right after "positivity"
                 # if j%500==1:
                 #     search_space_threshold = 0.1*rho_search.max()
