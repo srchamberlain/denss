@@ -115,6 +115,7 @@ def parse_arguments(parser):
         dev_var["shift"] = False
         dev_var["rho0"] = 0.334
         dev_var["shell"] = 0.019
+        dev_var["use_raw_data"] = False
 
         # exit()
     else:
@@ -133,7 +134,7 @@ def parse_arguments(parser):
             dev_var["search_invacuo"] = False
         if dev_var.get("ksol") is None:
             if dev_var.get("search_invacuo"):
-                dev_var["ksol"] = 0.334
+                dev_var["ksol"] = 0.9
             else:
                 dev_var["ksol"] = 0.0
         if dev_var.get("Bsol") is None:
@@ -170,6 +171,8 @@ def parse_arguments(parser):
             dev_var["rho0"] = 0.334
         if dev_var.get("shell") is None:
             dev_var["shell"] = 0.019
+        if dev_var.get("use_raw_data") is None:
+            dev_var["use_raw_data"] = False
 
         print("dev_var was passed and all defaults not defined were set.")
     args.dev_var = dev_var

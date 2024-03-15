@@ -468,6 +468,9 @@ if __name__ == "__main__":
                     salpha.valmin = 0.0
                     salpha.ax.set_xlim(salpha.valmin, salpha.valmax)
 
+            P=np.sum(sasrec.In/sasrec.Inerr)
+            print(P)
+            print(sasrec.In/sasrec.Inerr)
             Dmax_box.set_val("%.4e"%dmax)
             Alpha_box.set_val("%.4e"%alpha)
 

@@ -1270,7 +1270,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_known = pdb2support_fast(pdb_known,x,y,z)
         rho_known_min = rho_known.min()
 
-        # write_mrc(np.ones_like(rho_known)*idx_known, side, fprefix+"_idxknown.mrc")
+        write_mrc(rho_known, side, fprefix+"_known.mrc")
 
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
@@ -1279,9 +1279,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if shift:
             pdb_search.coords+=coord_shift
 
-        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe)
-        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
-        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
+        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=10)
+        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
+        write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
         #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
@@ -1327,7 +1327,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             side=side,
             nsamples=n,
             rho0=rho0,  ##if rho0=0, we should be able to use positivity, since should all be positive inside search space
-            shell_contrast=shell)
+            shell_contrast=0.0)
         pdb2mrc_ligand.scale_radii()
         pdb2mrc_ligand.make_grids()
         #added for testing
@@ -1395,11 +1395,102 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #the user will provide holo - apo, since that's what is obtainable experimentally
         #which will affect some code above, so need to come back later
         #to ensure the proper distinction between known and apo
-        Imean_diff = Imean_holo - Imean_known
-        Idata = Imean_holo 
+        # Imean_diff = Imean_holo - Imean_known
+        # Idata = Imean_holo 
         # Idata = mybinmean(I3D_holo_data_Bfactor.ravel(), qblravel, xcount, DENSS_GPU=False)
         #Try applying a "B factor" ? to the scattering profile (not the same as Bfactor 
         # to individual terms, so check math for scattering profile application)
+        # use_raw_data = True
+        use_raw_data = dev_var["use_raw_data"]
+        if use_raw_data:
+            #use raw data
+            #assume raw data is difference profile holo - apo
+            #scale it to the expected number of electrons for now.
+            #the difference profile for the ligand should have an I(0)
+            #equal to the difference of the I(0) for holo and apo.
+            ne_holo = rho_holo.sum()
+            ne_known = rho_known.sum()
+
+            print()
+            print("Using difference (data) and apo profile to generate Idata")
+
+            pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/MBP/1lls_MBP_apo_FH_aligned.pdb')
+            # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/ADH_denss/1kev_FH.pdb')
+            # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/ADH_denss/1ped_FH_aligned.pdb')
+            pdb2mrc_apo = PDB2MRC(
+                pdb=pdb_apo,
+                center_coords=False,
+                voxel=dx,
+                side=side,
+                nsamples=n,
+                rho0=rho0,  #0.334  #0.323008
+                shell_contrast=shell) #0.019
+            pdb2mrc_apo.scale_radii()
+            pdb2mrc_apo.make_grids()
+            pdb2mrc_apo.calculate_global_B()
+            pdb2mrc_apo.calculate_invacuo_density()
+            pdb2mrc_apo.calculate_excluded_volume()
+            pdb2mrc_apo.calculate_hydration_shell()
+            pdb2mrc_apo.calc_rho_with_modified_params(pdb2mrc_apo.params)
+            rho_apo = pdb2mrc_apo.rho_insolvent
+
+            # rho_apo[idx_search] = 0
+            # rho_apo[~idx_known] = 0
+
+            #Just for a test
+            rho_holo = rho_apo + rho_ligand
+            F_holo = myfftn(rho_holo)
+            Amp3D_holo = np.abs(F_holo)
+            phase3D_holo = np.angle(F_holo)
+            I3D_holo = Amp3D_holo**2
+            Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
+
+            F_apo = myfftn(rho_apo)
+            Amp3D_apo = np.abs(F_apo)
+            # phase3D_apo = np.angle(F_apo)
+            I3D_apo = Amp3D_apo**2
+            Imean_apo = mybinmean(I3D_apo.ravel(), qblravel, xcount, DENSS_GPU=False)
+
+            #we can instead try scaling this to total electrons^2
+            # scale_factor = (ne_ligand**2)/Idata[0]
+            #could try scalling to theoretical difference profile?
+            Ipsuedo_diff = Imean_holo-Imean_apo
+            print(Ipsuedo_diff[0])
+            print(Idata[0])
+            scale_factor = Ipsuedo_diff[0]/Idata[0]
+            print(scale_factor)
+            # scale_factor = 1.0
+
+            # Idata = Imean_holo
+            # Idata_diff = Imean_holo-Imean_apo
+
+            Idata_diff = np.copy(Idata)
+            Idata_diff *= np.abs(scale_factor)
+            sigqdata *= np.abs(scale_factor)
+            print("Idata = Imean_apo + Idata_diff")
+            # # #now add Idata difference profile to Imean_known to generate a "pseudo-holo" scattering curve
+            # # Idata = Imean_known + Idata_diff
+            Idata = Imean_apo + Idata_diff
+
+            # import matplotlib.pyplot as plt
+            # plt.plot(qbinsc, Ipsuedo_diff, label='Ipsuedo_diff')
+            # plt.plot(qbinsc, Idata_diff, label='Idata_diff')
+            # # plt.plot(qbinsc, Idata, label='I_psuedo_holo')
+            # plt.legend()
+            # # plt.yscale("log")
+            # plt.show()
+
+            # exit()
+
+
+        else:
+            #for development simulations
+            #set the target profile to be the known density profile plus the given "experimental" difference profile
+            #in this case, our "experimental data" is just the simulated difference profile
+            #so the pseudo-holo scattering profile is just the simulated holo scattering profile
+
+            Idata = Imean_holo
+            Idata_diff = Imean_holo - Imean_known
 
 
         ##Setting rho_known restaint to only be outside search space. Now residues
@@ -1411,8 +1502,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         search_invacuo = dev_var["search_invacuo"]
         if search_invacuo:
             enable_search_invacuo = True
-            #Test giving correct invacuo solution
-            # rho_search_invacuo = np.copy(rho_ligand_invacuo)
 
             #Starting in vacuo from random density
             rho_search_invacuo = np.copy(rho_search)
@@ -1436,11 +1525,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             # F_search_invacuo = myfftn(rho_search_invacuo)
             # F_search= F_search_invacuo*(1-ksolBsol)
             # rho_search = myifftn(F_search).real
-
-            # F_search = myfftn(rho_search)
-            # F_search_invacuo = F_search/(1-ksolBsol)
-            # rho_search_invacuo = myifftn(F_search_invacuo).real
-            # rho_search_invacuo = rho_search[rho_search<0]
 
             # rho_search *= emax_ligand/np.max(rho_search)
             # rho_search_invacuo *= ne_ligand_invacuo/np.sum(rho_search_invacuo)
@@ -1622,13 +1706,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #here just make those values to be 1e-16 to be non-zero
         # F[np.abs(F)==0] = 1e-16
 
-        ##quick plotting test
-        # Amp3D_temp[:,j] = np.abs(F[qbin_labels==2])/Amp3D_holo[qbin_labels==2]
-        # plt.plot(Amp3D_temp[:,j], label = "Ratio of Amps step " + np.str(j))
-        # if j==steps-1:
-        #     plt.title("Amplitudes of qbin3 (Ratio to Holo)")
-        #     plt.legend()
-        #     plt.show()
 
         #APPLY RECIPROCAL SPACE RESTRAINTS
         #calculate spherical average of intensities from 3D Fs
@@ -1646,23 +1723,23 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ##-------------------------------------
         ##Testing only scaling F_search
         ##-------------------------------------
-        if scale_F_search_factors and j>1000:
-            # import matplotlib.pyplot as plt
-            F_search = F - F_known
-            # F_search = myfftn(rho_search, DENSS_GPU=DENSS_GPU)
+        # if scale_F_search_factors and j>1000:
+        #     # import matplotlib.pyplot as plt
+        #     F_search = F - F_known
+        #     # F_search = myfftn(rho_search, DENSS_GPU=DENSS_GPU)
 
-            for m in range(20):
-                F_search*=factors[qbl]
-                F_temp=F_known+F_search #I have a feeling the failure to converge has to do with resetting
-                                        #F_known in F before calculating Imean... Even though I checked and it does
-                                        #Converge over time..
-                I3D_temp = abs2(F_temp)
-                Imean_temp = mybinmean(I3D_temp.ravel(), binsravel=qblravel,xcount=xcount,DENSS_GPU=DENSS_GPU)
-                factors = xp.sqrt(Idata/Imean_temp)
-                factors[~qba] = 1.0
+        #     for m in range(20):
+        #         F_search*=factors[qbl]
+        #         F_temp=F_known+F_search #I have a feeling the failure to converge has to do with resetting
+        #                                 #F_known in F before calculating Imean... Even though I checked and it does
+        #                                 #Converge over time..
+        #         I3D_temp = abs2(F_temp)
+        #         Imean_temp = mybinmean(I3D_temp.ravel(), binsravel=qblravel,xcount=xcount,DENSS_GPU=DENSS_GPU)
+        #         factors = xp.sqrt(Idata/Imean_temp)
+        #         factors[~qba] = 1.0
 
-            F = F_temp
-            Imean = Imean_temp
+        #     F = F_temp
+        #     Imean = Imean_temp
 
         chi[j] = mysum(((Imean[qba]-Idata[qba])/sigqdata[qba])**2, DENSS_GPU=DENSS_GPU)/Idata[qba].size
 
@@ -1711,14 +1788,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 ER = True
                 HIO = False
 
-            # print(" ")
-            # print(ER)
-            # print(RAAR)
-            # print(HIO)
-            # print(np.sum(rho_search[~idx_search]))
-            # print(np.sum(rho_search[idx_search]))
-            # print()
-
 
             if ER:
                 # rho_search[~sas_search] = 0
@@ -1735,12 +1804,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             ##--------Applying real space restraints to F_search_invacuo--------##
             if enable_search_invacuo and (j%iv_step==0): # and (j>2000): # and (j<steps-100):
-                # if DENSS_GPU:
-                #     rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
-                # old_rho_search_invacuo = np.copy(rho_search_invacuo)
-                # if DENSS_GPU:
-                #     rho_search_invacuo=cp.array(rho_search_invacuo)
-
                 F_search = myfftn(rho_search)
                 F_search_invacuo = F_search/(1-ksolBsol)
 
@@ -1759,7 +1822,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                         F_search_invacuo=cp.array(F_search_invacuo)
 
                 rho_search_invacuo = myifftn(F_search_invacuo).real
-                # rho_search_invacuo = xp.copy(rho_search)
+                # rho_search_invacuo = cp.copy(rho_search)
                 # rho_search_invacuo[rho_search_invacuo<0]=0.0
 
             #enforce positivity by making all negative density points zero in search.
@@ -1772,20 +1835,14 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     # rho_search[rho_search<-0.334] = -0.334
                 else:
                     rho_search[rho_search<neg_thresh] = neg_thresh
-                ##test sign flipping right after "positivity"
-                # if j%500==1:
-                #     search_space_threshold = 0.1*rho_search.max()
-                #     rho_search_outside = rho_search[~idx_search]
-                #     rho_search_outside[np.abs(rho_search_outside)<search_space_threshold] *= -1.0
-                #     rho_search[~idx_search]=rho_search_outside
                 
             #attempt to "smooth" the density to make it less noisy
             if smooth and j%smooth_step==0 and j>10: #j%500==0 and j==(steps-1):
                 if DENSS_GPU:
                     rho_search=cp.asnumpy(rho_search)
+                # rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
                 rho_search_smooth = np.copy(rho_search)
                 rho_search_smooth[sas_search] = 0.0
-                # rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
                 rho_search_smooth = ndimage.gaussian_filter(rho_search_smooth,sigma=1.0)
                 rho_search[~sas_search] = rho_search_smooth[~sas_search]
                 if DENSS_GPU:
@@ -1866,10 +1923,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     # rho_search[rho_search<0] *= ne_ligand / rho_search[rho_search<0].sum()
                 else:
                     rho_search *= ne_ligand / rho_search[idx_search].sum()
-            # elif scale_ne: #and j%500==0:
-            #     # rho_search *= ne_ligand / rho_search[idx_search].sum()
-            #     rho_search[rho_search>0] *= ne_ligand_pos / rho_search[rho_search>0].sum()
-            #     rho_search[rho_search<0] *= ne_ligand_neg / rho_search[rho_search<0].sum()
 
             newrho = rho_known + rho_search
 
@@ -2198,11 +2251,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
 
     #return original unscaled values of Idata (and therefore Imean) for comparison with real data
-    Idata /= scale_factor
-    sigqdata /= scale_factor
-    Imean /= scale_factor
-    I /= scale_factor
-    sigq /= scale_factor
+    # Idata /= scale_factor
+    # sigqdata /= scale_factor
+    # Imean /= scale_factor
+    # I /= scale_factor
+    # sigq /= scale_factor
 
     #Write some more output files
     if qraw is None:
@@ -4978,83 +5031,98 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     Takes in a PDB object of known protein, and a pdb object defining the center point of the
     search space. """
 
-    support = np.ones(x.shape,dtype=np.bool_)
+    # support = np.ones(x.shape,dtype=np.bool_)
+    support_final = np.zeros(x.shape,dtype=np.bool_)
+    sas_final = np.zeros(x.shape,dtype=np.bool_)
     n = x.shape[0]
     side = x.max()-x.min()
     dx = side/n
-    center = center_pdb.coords
+    # center = center_pdb.coords
+    centers = center_pdb.coords
+
     xyz = np.column_stack((x.ravel(),y.ravel(),z.ravel()))
     r_water = 1.4
 
-    support_ravel = support.ravel()
+    # support_ravel = support.ravel()
 
-    #Set support to False for all gridpoints outside a large (20Å) radius space.
-    #Need distance of all grid points (xyz) to center
-    dist = spatial.distance.cdist(xyz, center)
+    for i in range(np.shape(centers)[0]):
 
-    #Set up an array that defines the voxel closest to center xyz coordinate
-    center_support = np.zeros(x.shape,dtype=np.bool_)
-    center_support_ravel = center_support.ravel()
-    center_support_ravel[dist[:,0]<probe] = True
-    center_support = center_support_ravel.reshape(n,n,n)
+        center = [centers[i]]
+        #Set support to False for all gridpoints outside a large (20Å) radius space.
+        #Need distance of all grid points (xyz) to center
+        dist = spatial.distance.cdist(xyz, center)
 
-    #Remove all voxels from support outside the large search radius
-    support_ravel[dist[:,0]>radius] = False   #Since these are all coordinates it will be in Angrstoms. 
+        #rest temp support 
+        support = np.ones(x.shape,dtype=np.bool_)
+        support_ravel = support.ravel()
+        #Set up an array that defines the voxel closest to center xyz coordinate
+        center_support = np.zeros(x.shape,dtype=np.bool_)
+        center_support_ravel = center_support.ravel()
+        center_support_ravel[dist[:,0]<probe] = True
+        center_support = center_support_ravel.reshape(n,n,n)
 
-    #Now create a grid with all points that lie within the large radius from the center of our pocket
-    grid = xyz[support_ravel]
-    grid_support = np.ones_like(grid[:,0])
+        #Remove all voxels from support outside the large search radius
+        support_ravel[dist[:,0]>radius] = False   #Since these are all coordinates it will be in Angrstoms. 
 
-    # #Next, need to calculate the distance of each grid point to each protein atom.
-    # If the grid point is within the vdW+r_water, a water molecule can't
-    # be placed there. so subtract the vdW radius
-    # of each atom from the distance. if any dist-VdW<r_water, exclude from support. 
-    natoms = pdb.natoms
-    for i in range(natoms):
-        dist1 = spatial.distance.cdist(pdb.coords[None,i], grid)
-        dist1 -= pdb.vdW[i]
-        grid_support[dist1[0,:]<r_water] = False
+        #Now create a grid with all points that lie within the large radius from the center of our pocket
+        grid = xyz[support_ravel]
+        grid_support = np.ones_like(grid[:,0])
 
-    support_ravel[dist[:,0]<=radius] = grid_support
-    support = support_ravel.reshape(n,n,n)
+        # #Next, need to calculate the distance of each grid point to each protein atom.
+        # If the grid point is within the vdW+r_water, a water molecule can't
+        # be placed there. so subtract the vdW radius
+        # of each atom from the distance. if any dist-VdW<r_water, exclude from support. 
+        natoms = pdb.natoms
+        for i in range(natoms):
+            dist1 = spatial.distance.cdist(pdb.coords[None,i], grid)
+            dist1 -= pdb.vdW[i]
+            grid_support[dist1[0,:]<r_water] = False
 
-    ##Before this point, want to remove pieces of the search space that are not attached
-    #to the main binding pocket
-    #label the support into separate segments based on a 3x3x3 grid
-    struct = ndimage.generate_binary_structure(3, 3)
-    labeled_support, num_features = ndimage.label(support, structure=struct)
+        support_ravel[dist[:,0]<=radius] = grid_support
+        support = support_ravel.reshape(n,n,n)
 
-    # #find the feature with the greatest number of voxels and/or that has center coordinate
-    #Defining the center feature 
-    center_feature = labeled_support[center_support]
-    #grab the feature number that corresponds to the center point
-    num_feature_to_keep = np.bincount(center_feature).argmax()
-    #Grab only center feature
-    support[labeled_support!=num_feature_to_keep] = False
+        ##Before this point, want to remove pieces of the search space that are not attached
+        #to the main binding pocket
+        #label the support into separate segments based on a 3x3x3 grid
+        struct = ndimage.generate_binary_structure(3, 3)
+        labeled_support, num_features = ndimage.label(support, structure=struct)
 
-    ##At this point we have the solvent accessable surface
-    sas = np.copy(support)
+        # #find the feature with the greatest number of voxels and/or that has center coordinate
+        #Defining the center feature 
+        center_feature = labeled_support[center_support]
+        #grab the feature number that corresponds to the center point
+        num_feature_to_keep = np.bincount(center_feature).argmax()
+        #Grab only center feature
+        support[labeled_support!=num_feature_to_keep] = False
 
-    support_ravel = support.ravel()
+        ##At this point we have the solvent accessable surface
+        sas = np.copy(support)
+        sas_final[sas==True] = True
 
-    ##One more cdist of new grid to circle grid to expand new grid by the radius of a probe.
-    # by default, the probe is a water molecule, creating the SES. If a larger probe size is passed, this
-    # will expand the search space to include some part of the side chains. 
-    # ngridpoints = len(grid)
-    grid2 = xyz[support_ravel]
-    grid2_support = np.zeros_like(grid[:,0])
+        support_ravel = support.ravel()
 
-    ngridpoints = len(grid2[:,0])
-    for i in range(ngridpoints):
-        dist2 = spatial.distance.cdist(grid,[grid2[i,:]])
-        grid2_support[dist2[:,0]<probe] = True
+        ##One more cdist of new grid to circle grid to expand new grid by the radius of a probe.
+        # by default, the probe is a water molecule, creating the SES. If a larger probe size is passed, this
+        # will expand the search space to include some part of the side chains. 
+        # ngridpoints = len(grid)
+        grid2 = xyz[support_ravel]
+        grid2_support = np.zeros_like(grid[:,0])
 
-    support_ravel[dist[:,0]<=radius] = grid2_support
+        ngridpoints = len(grid2[:,0])
+        for i in range(ngridpoints):
+            dist2 = spatial.distance.cdist(grid,[grid2[i,:]])
+            grid2_support[dist2[:,0]<probe] = True
 
-    support = support_ravel.reshape(n,n,n)
+        support_ravel[dist[:,0]<=radius] = grid2_support
+
+        support_temp = support_ravel.reshape(n,n,n)
+        support_final[support_temp==True] = True
+
+
+    # support = support_ravel.reshape(n,n,n)
     # write_mrc(np.ones((n,n,n))*support,side,"test_new_idx_search_03_2.mrc")
 
-    return support, sas
+    return support_final, sas_final
 
 def u2B(u):
     """Calculate B-factor from atomic displacement, u"""
