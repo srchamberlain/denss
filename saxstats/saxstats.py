@@ -1279,7 +1279,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if shift:
             pdb_search.coords+=coord_shift
 
-        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=10)
+        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=15)
         write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
         write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
