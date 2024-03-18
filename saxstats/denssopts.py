@@ -80,6 +80,7 @@ def parse_arguments(parser):
     parser.add_argument("-pdb_known", "--pdb_known", dest="pdb_fn_known", type=str, help="PDB filename defining known atoms.")
     parser.add_argument("-pdb_search", "--pdb_search", dest="pdb_fn_search", type=str, help="PDB filename defining coordinates for calculating search region.")
     parser.add_argument("-pdb_ligand", "--pdb_ligand", dest="pdb_fn_ligand", type=str, help="PDB filename defining ligand atoms (for development only).")
+    parser.add_argument("-pdb_apo", "--pdb_apo", default=None, dest="pdb_fn_apo", type=str, help="PDB filename defining apo structure atoms.")
     parser.add_argument("-dv", "--dev_var", dest="dev_var", default={}, type=json.loads)
     parser.set_defaults(shrinkwrap=None)
     parser.set_defaults(shrinkwrap_old_method=None)
@@ -108,8 +109,7 @@ def parse_arguments(parser):
         dev_var["scale_ne"] = False
         dev_var["p_steps"] = 0
         dev_var["idx_probe"] = 1.4
-        dev_var["B_smooth"] = False
-        dev_var["neg_thresh"] = -0.334
+        dev_var["density_thresh"] = -0.334
         dev_var["smooth"] = False
         dev_var["smooth_step"] = 5000
         dev_var["shift"] = False
@@ -142,8 +142,6 @@ def parse_arguments(parser):
                 dev_var["Bsol"] = 75
             else:
                 dev_var["Bsol"] = 0.0
-        if dev_var.get("B_smooth") is None:
-            dev_var["B_smooth"] = False
         if dev_var.get("iv_step") is None:
             if dev_var.get("search_invacuo"):
                 dev_var["iv_step"] = 1
@@ -159,8 +157,8 @@ def parse_arguments(parser):
             dev_var["p_steps"] = 0
         if dev_var.get("idx_probe") is None:
             dev_var["idx_probe"] = 1.4
-        if dev_var.get("neg_thresh") is None:
-            dev_var["neg_thresh"] = -0.334
+        if dev_var.get("density_thresh") is None:
+            dev_var["density_thresh"] = -0.334
         if dev_var.get("smooth") is None:
             dev_var["smooth"] = False
         if dev_var.get("smooth_step") is None:

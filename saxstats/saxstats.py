@@ -1052,7 +1052,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
     ncs_steps=[500],ncs_axis=1, ncs_type="cyclical",abort_event=None, my_logger=logging.getLogger(),
     path='.', gui=False, DENSS_GPU=False,
     #ligand additions
-    pdb_fn_known=None,pdb_fn_ligand=None,pdb_fn_search=None,
+    pdb_fn_known=None,pdb_fn_ligand=None,pdb_fn_search=None,pdb_fn_apo=None,
     dev_var={}):
     """Calculate electron density from scattering data."""
     if abort_event is not None:
@@ -1208,7 +1208,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         p_steps = dev_var["p_steps"]
         idx_probe = dev_var["idx_probe"]
         scale_ne = dev_var["scale_ne"]
-        neg_thresh = dev_var["neg_thresh"]
+        density_thresh = dev_var["density_thresh"]
         smooth = dev_var["smooth"]
         smooth_step = dev_var["smooth_step"]
         shift = dev_var["shift"]
@@ -1280,16 +1280,12 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             pdb_search.coords+=coord_shift
 
         idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=15)
-        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
-        write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
         #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
         # idx_search = pdb2support_fast(pdb_search,x,y,z,radius=np.zeros(pdb_search.natoms),probe=search_radius)
-
-        #retest without removing idx_known from idxsearch
-        #in reality, some side chains could be within the search space
-        #and we do not want to set that to zero even if it lies within the search space
 
         #modify idx of known region to accomodate search region
         #in case search region overlaps known region
@@ -1307,8 +1303,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         rho_search[~idx_search] = 0
         #try making just the sas surface full of random density to start
         # rho_search[~sas_search] = 0
-        ###Will need a new method for scaling this up instead of using electrons from the ligand
-        #density map
 
         #density of the known ligand 
         #-----------for development purposes only-------------#
@@ -1356,7 +1350,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         Amp3D_ligand = np.abs(F_ligand)
         # phase3D_ligand = np.angle(F_ligand)
         I3D_ligand = Amp3D_ligand**2
-        # rho_ligand = myifftn(F_ligand).real
         Imean_ligand = mybinmean(I3D_ligand.ravel(), qblravel, xcount, DENSS_GPU=False)
 
         #cumulative distribution function of ligand for histogram matching
@@ -1365,18 +1358,17 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #save the total number of electrons for the ligand
         ne_ligand = np.sum(rho_ligand)
         ne_ligand_invacuo = np.sum(rho_ligand_invacuo)
-        ne_ligand_pos = np.sum(rho_ligand[rho_ligand>0])
-        ne_ligand_neg = np.sum(rho_ligand[rho_ligand<0])
+        # ne_ligand_pos = np.sum(rho_ligand[rho_ligand>0])
+        # ne_ligand_neg = np.sum(rho_ligand[rho_ligand<0])
         emax_ligand = np.max(rho_ligand)
         print('Number of electrons in ligand: %.2f' % (ne_ligand))
 
         #Clear up some memory
-        del rho_ligand_invacuo, rho_ligand_exvol, idx_ligand
+        del rho_ligand_invacuo, rho_ligand_exvol, idx_ligand, rho_ligand_exvol
 
         #calculate structure factors (F), 3D intensities (I3D), and 1D spherical averages, i.e. SWAXS (Imean)
         F_holo = myfftn(rho_holo)
         F_known = myfftn(rho_known)
-        # F_known = myfftn(pdb2mrc_known.rho_invacuo)
         # F_holo = F_known+F_ligand
         Amp3D_holo = np.abs(F_holo)
         Amp3D_known = np.abs(F_known)
@@ -1387,8 +1379,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
         Imean_known = mybinmean(I3D_known.ravel(), qblravel, xcount, DENSS_GPU=False)
 
-        # B = 5.0
-        # I3D_holo_data_Bfactor = I3D_holo*np.exp(-2*B*(qr/(4*np.pi))**2)
         #calculate difference scattering profile for testing
         #in experiment, this would be given by the user
         #also, note that here we're using holo - known, but in reality
@@ -1398,8 +1388,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         # Imean_diff = Imean_holo - Imean_known
         # Idata = Imean_holo 
         # Idata = mybinmean(I3D_holo_data_Bfactor.ravel(), qblravel, xcount, DENSS_GPU=False)
-        #Try applying a "B factor" ? to the scattering profile (not the same as Bfactor 
-        # to individual terms, so check math for scattering profile application)
+
         # use_raw_data = True
         use_raw_data = dev_var["use_raw_data"]
         if use_raw_data:
@@ -1413,10 +1402,14 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             print()
             print("Using difference (data) and apo profile to generate Idata")
+            if pdb_fn_apo is None:
+                pdb_apo = pdb_known
+            else:
+                pdb_apo = PDB(pdb_fn_apo)
+                # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/MBP/1lls_MBP_apo_FH_aligned.pdb')
+                # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/ADH_denss/1kev_FH.pdb')
+                # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/ADH_denss/1ped_FH_aligned.pdb')
 
-            pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/MBP/1lls_MBP_apo_FH_aligned.pdb')
-            # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/ADH_denss/1kev_FH.pdb')
-            # pdb_apo = PDB('/Users/srchambe/Documents/denss_drugs/ADH_denss/1ped_FH_aligned.pdb')
             pdb2mrc_apo = PDB2MRC(
                 pdb=pdb_apo,
                 center_coords=False,
@@ -1441,7 +1434,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             rho_holo = rho_apo + rho_ligand
             F_holo = myfftn(rho_holo)
             Amp3D_holo = np.abs(F_holo)
-            phase3D_holo = np.angle(F_holo)
+            # phase3D_holo = np.angle(F_holo)
             I3D_holo = Amp3D_holo**2
             Imean_holo = mybinmean(I3D_holo.ravel(), qblravel, xcount, DENSS_GPU=False)
 
@@ -1460,9 +1453,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             scale_factor = Ipsuedo_diff[0]/Idata[0]
             print(scale_factor)
             # scale_factor = 1.0
-
-            # Idata = Imean_holo
-            # Idata_diff = Imean_holo-Imean_apo
 
             Idata_diff = np.copy(Idata)
             Idata_diff *= np.abs(scale_factor)
@@ -1492,11 +1482,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             Idata = Imean_holo
             Idata_diff = Imean_holo - Imean_known
 
-
-        ##Setting rho_known restaint to only be outside search space. Now residues
-        #should be included in true solution holo profile, but now defined in "rho_known"
-        # rho_known[~idx_known] = 0
-
         #------------Testing modeling bulk solvent separate from in vacuo density--------
         # search_invacuo = False
         search_invacuo = dev_var["search_invacuo"]
@@ -1518,9 +1503,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
             rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
             rho_search = rho_search_invacuo - rho_search_exvol
-
-            B_smooth = dev_var["B_smooth"]
-            B_invacuo = pdb2mrc_known.global_B
             
             # F_search_invacuo = myfftn(rho_search_invacuo)
             # F_search= F_search_invacuo*(1-ksolBsol)
@@ -1543,8 +1525,10 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             # rho_search[idx_search] = 1
 
         ##Testing giving true solution
-
         # rho_search = np.copy(rho_ligand)
+
+        #Clear up some memory
+        del Amp3D_holo, Amp3D_known, Amp3D_ligand, I3D_holo, I3D_known, I3D_ligand
 
 
         print('Number of electrons in search space: %.2f' % (rho_search.sum()))
@@ -1795,7 +1779,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             if HIO:
                 rho_search[~idx_search] = old_rho_search[~idx_search] - beta*rho_search[~idx_search]
             if RAAR:
-                # rho_search = beta*old_rho_search - beta*rho_search + (1-beta)*rho_search
                 rho_search[~idx_search] = beta*old_rho_search[~idx_search] - beta*rho_search[~idx_search] + (1-beta)*rho_search[~idx_search]
                 # rho_search[idx_search] = 2*beta*rho_search[idx_search] - beta*old_rho_search[idx_search]
 
@@ -1810,23 +1793,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 # rho_search_invacuo = np.copy(rho_search)
                 # rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
-                #Test applying a B-factor to F_search_invacuo 
-                #almost exactly like calculating the exvel from invacuo, just not fractioning
-                #with skol
-
-                if B_smooth: # or j%(iv_step*5)==0:
-                    if DENSS_GPU:
-                        F_search_invacuo=cp.asnumpy(F_search_invacuo)
-                    F_search_invacuo*=np.exp(-B_invacuo* (qr / (4*np.pi))**2)
-                    if DENSS_GPU:
-                        F_search_invacuo=cp.array(F_search_invacuo)
-
                 rho_search_invacuo = myifftn(F_search_invacuo).real
-                # rho_search_invacuo = cp.copy(rho_search)
-                # rho_search_invacuo[rho_search_invacuo<0]=0.0
 
             #enforce positivity by making all negative density points zero in search.
-            
             if (positivity) and enable_search_invacuo and (j%iv_step==0): # and (j>2000):
                 rho_search_invacuo[rho_search_invacuo<0] = 0.0
             elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
@@ -1834,7 +1803,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     rho_search[rho_search<0] = 0.0
                     # rho_search[rho_search<-0.334] = -0.334
                 else:
-                    rho_search[rho_search<neg_thresh] = neg_thresh
+                    rho_search[rho_search<density_thresh] = density_thresh
                 
             #attempt to "smooth" the density to make it less noisy
             if smooth and j%smooth_step==0 and j>10: #j%500==0 and j==(steps-1):
@@ -1862,7 +1831,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 target_cdf = np.copy(cdf_ligand)
                 rho_search[idx_search] = hist_match(rho_search[idx_search],target_cdf)
 
-            if enable_search_invacuo and j%iv_step==0: # and (j>2000): # and (j<steps-100):
+            if enable_search_invacuo and j%iv_step==0: 
                 #Recalculate exlcuded volume after real space restraints on the invacuo component
                 # F_search_exvol = ksolBsol*F_search_invacuo
                 # rho_search_exvol = myifftn(F_search_exvol).real
