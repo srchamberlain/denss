@@ -111,7 +111,7 @@ def parse_arguments(parser):
         dev_var["idx_probe"] = 1.4
         dev_var["density_thresh"] = -0.334
         dev_var["smooth"] = False
-        dev_var["smooth_step"] = 5000
+        dev_var["smooth_steps"] = [5000]
         dev_var["shift"] = False
         dev_var["rho0"] = 0.334
         dev_var["shell"] = 0.019
@@ -161,8 +161,8 @@ def parse_arguments(parser):
             dev_var["density_thresh"] = -0.334
         if dev_var.get("smooth") is None:
             dev_var["smooth"] = False
-        if dev_var.get("smooth_step") is None:
-            dev_var["smooth_step"] = 5000
+        if dev_var.get("smooth_steps") is None:
+            dev_var["smooth_steps"] = [5000]
         if dev_var.get("shift") is None:
             dev_var["shift"] = False
         if dev_var.get("rho0") is None:

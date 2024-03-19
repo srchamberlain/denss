@@ -1210,7 +1210,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         scale_ne = dev_var["scale_ne"]
         density_thresh = dev_var["density_thresh"]
         smooth = dev_var["smooth"]
-        smooth_step = dev_var["smooth_step"]
+        smooth_steps = dev_var["smooth_steps"]
         shift = dev_var["shift"]
         rho0 = dev_var["rho0"]
         shell = dev_var["shell"]
@@ -1707,8 +1707,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         ##-------------------------------------
         ##Testing only scaling F_search
         ##-------------------------------------
-        # if scale_F_search_factors and j>1000:
-        #     # import matplotlib.pyplot as plt
+        # if scale_F_search_factors:
         #     F_search = F - F_known
         #     # F_search = myfftn(rho_search, DENSS_GPU=DENSS_GPU)
 
@@ -1796,9 +1795,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search_invacuo = myifftn(F_search_invacuo).real
 
             #enforce positivity by making all negative density points zero in search.
-            if (positivity) and enable_search_invacuo and (j%iv_step==0): # and (j>2000):
+            if (positivity) and enable_search_invacuo and (j%iv_step==0): 
                 rho_search_invacuo[rho_search_invacuo<0] = 0.0
-            elif (positivity): #and (j<p_steps): #& (j%50==0): # and (j in positivity_steps):
+            elif (positivity): # and (j in positivity_steps):
                 if j<p_steps: 
                     rho_search[rho_search<0] = 0.0
                     # rho_search[rho_search<-0.334] = -0.334
@@ -1806,7 +1805,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     rho_search[rho_search<density_thresh] = density_thresh
                 
             #attempt to "smooth" the density to make it less noisy
-            if smooth and j%smooth_step==0 and j>10: #j%500==0 and j==(steps-1):
+            if smooth and (j in smooth_steps): 
                 if DENSS_GPU:
                     rho_search=cp.asnumpy(rho_search)
                 # rho_search = ndimage.gaussian_filter(rho_search,sigma=1.0)
