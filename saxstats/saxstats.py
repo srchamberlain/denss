@@ -1255,13 +1255,10 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             shell_contrast=shell)
         pdb2mrc_known.scale_radii()
         pdb2mrc_known.make_grids()
-        #Inserted for testing
         pdb2mrc_known.calculate_global_B() #use pdb2sas to give pdb for holo, pdb for apo, calc difference scattering
                                             #calc density my with pdb2mrc to generate holo and apo with global B and correction,
                                             #then calc again without the correction, check difference profiles for all cases 
                                             #against one another.
-        # print(pdb2mrc_known.global_B)
-        #########
         pdb2mrc_known.calculate_invacuo_density()
         pdb2mrc_known.calculate_excluded_volume()
         pdb2mrc_known.calculate_hydration_shell()
@@ -1364,7 +1361,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         print('Number of electrons in ligand: %.2f' % (ne_ligand))
 
         #Clear up some memory
-        del rho_ligand_invacuo, rho_ligand_exvol, idx_ligand, rho_ligand_exvol
+        del rho_ligand_invacuo, rho_ligand_exvol, idx_ligand
 
         #calculate structure factors (F), 3D intensities (I3D), and 1D spherical averages, i.e. SWAXS (Imean)
         F_holo = myfftn(rho_holo)
