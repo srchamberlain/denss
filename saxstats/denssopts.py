@@ -109,6 +109,7 @@ def parse_arguments(parser):
         dev_var["scale_ne"] = False
         dev_var["p_steps"] = 0
         dev_var["idx_probe"] = 1.4
+        dev_var["idx_radius"] = 15
         dev_var["density_thresh"] = -0.334
         dev_var["smooth"] = False
         dev_var["smooth_steps"] = [5000]
@@ -157,6 +158,8 @@ def parse_arguments(parser):
             dev_var["p_steps"] = 0
         if dev_var.get("idx_probe") is None:
             dev_var["idx_probe"] = 1.4
+        if dev_var.get("idx_radius") is None:
+            dev_var["idx_radius"] = 15
         if dev_var.get("density_thresh") is None:
             dev_var["density_thresh"] = -0.334
         if dev_var.get("smooth") is None:

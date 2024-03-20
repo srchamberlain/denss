@@ -1207,6 +1207,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         enable_RAAR = dev_var['enable_RAAR']
         p_steps = dev_var["p_steps"]
         idx_probe = dev_var["idx_probe"]
+        idx_radius = dev_var["idx_radius"]
         scale_ne = dev_var["scale_ne"]
         density_thresh = dev_var["density_thresh"]
         smooth = dev_var["smooth"]
@@ -1276,7 +1277,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         if shift:
             pdb_search.coords+=coord_shift
 
-        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=15)
+        idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=idx_radius)
         # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
         # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
 
