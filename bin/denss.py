@@ -99,6 +99,7 @@ if __name__ == "__main__":
         enforce_connectivity=args.enforce_connectivity,
         enforce_connectivity_steps=args.enforce_connectivity_steps,
         enforce_connectivity_max_features=args.enforce_connectivity_max_features,
+        enforce_connectivity_threshold=args.enforce_connectivity_threshold,
         cutout=args.cutout,
         quiet=args.quiet,
         DENSS_GPU=args.DENSS_GPU,

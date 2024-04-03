@@ -1048,9 +1048,9 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
     shrinkwrap_sigma_end=1.5, shrinkwrap_sigma_decay=0.99, shrinkwrap_threshold_fraction=0.2,
     shrinkwrap_iter=20, shrinkwrap_minstep=100, chi_end_fraction=0.01,
     write_xplor_format=False, write_freq=100, enforce_connectivity=True,
-    enforce_connectivity_steps=[500], enforce_connectivity_max_features=1, cutout=True, quiet=False, ncs=0,
-    ncs_steps=[500],ncs_axis=1, ncs_type="cyclical",abort_event=None, my_logger=logging.getLogger(),
-    path='.', gui=False, DENSS_GPU=False,
+    enforce_connectivity_steps=[500], enforce_connectivity_max_features=1, enforce_connectivity_threshold=0.1, 
+    cutout=True, quiet=False, ncs=0, ncs_steps=[500],ncs_axis=1, ncs_type="cyclical",
+    abort_event=None, my_logger=logging.getLogger(), path='.', gui=False, DENSS_GPU=False,
     #ligand additions
     pdb_fn_known=None,pdb_fn_ligand=None,pdb_fn_search=None,pdb_fn_apo=None,
     dev_var={}):
@@ -1129,6 +1129,11 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
     #set qba bins outside of scaling region to false.
     #start with bins in corners
     # qba[qbinsc>qx_.max()] = False
+    if dev_var.get("qba") is None:
+        qba_limit = qx_.max()
+    else:
+        qba_limit = dev_var["qba"]
+    qba[qbinsc>qba_limit] = False
 
     sigqdata = np.interp(qdata,q,sigq)
 
@@ -1167,7 +1172,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
     prng = np.random.RandomState(seed)
     coord_shift = prng.rand(3)
-    print(coord_shift)
+    # print(coord_shift)
 
     # pdb_fn_known = None
     if pdb_fn_known is not None:
@@ -1180,7 +1185,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #as these will alter the restraints of the known structure
         #just in case we forget to turn it off at the command line
         shrinkwrap = False
-        enforce_connectivity = False
+        # enforce_connectivity = True
         # swbyvol = True
         # sigma = shrinkwrap_sigma_start
         # swV = V/2.0
@@ -1202,9 +1207,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         # beta = 1.1
         histmatch = dev_var['histmatch']
         # histmatch = False
-        scale_F_search_factors = dev_var['enable_scale_F_search']
-        # scale_F_search_factors = False
-        enable_RAAR = dev_var['enable_RAAR']
         p_steps = dev_var["p_steps"]
         idx_probe = dev_var["idx_probe"]
         idx_radius = dev_var["idx_radius"]
@@ -1221,7 +1223,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         # protein and ligand in contrast. 
         HIO = False
         ER = True
-        RAAR = False
 
         # # #calculate maps from pdb
         # # #rho's are the electron density values
@@ -1278,8 +1279,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             pdb_search.coords+=coord_shift
 
         idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=idx_radius)
-        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_new_idxsearch.mrc")
-        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_new_sassearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_idxsearch.mrc")
+        # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
         #search_radius = 5.0 #all voxels within search_radius angstroms of atom coordinates
@@ -1297,7 +1298,15 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         # idx_search[idx_known] = False
 
         ##Fill new defined search space with random density
-        rho_search = prng.random_sample(size=rho_known.shape)
+        if rho_start is not None:
+            rho_search = rho_start #*dV
+            if add_noise is not None:
+                noise_factor = rho_search.max() * add_noise
+                noise = prng.random_sample(size=x.shape)*noise_factor
+                rho_search += noise
+        else:
+            # rho = prng.random_sample(size=x.shape) #- 0.5
+            rho_search = prng.random_sample(size=rho_known.shape)
         rho_search[~idx_search] = 0
         #try making just the sas surface full of random density to start
         # rho_search[~sas_search] = 0
@@ -1482,46 +1491,35 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         #------------Testing modeling bulk solvent separate from in vacuo density--------
         # search_invacuo = False
-        search_invacuo = dev_var["search_invacuo"]
-        if search_invacuo:
-            enable_search_invacuo = True
+        # search_invacuo = dev_var["search_invacuo"]
+        # if search_invacuo:
+        #     enable_search_invacuo = True
 
-            #Starting in vacuo from random density
-            rho_search_invacuo = np.copy(rho_search)
+        #     #Starting in vacuo from random density
+        #     rho_search_invacuo = np.copy(rho_search)
         
-            #Calculate excluded volume
-            # ksol = 0.334 #1.12      #Best fits occured between 1.08-1.13 but ksol>1 causes the strange blobbing
-            # Bsol = 75 #75       #Best fits occured between 60 - 80
-            ksol = dev_var["ksol"]
-            Bsol = dev_var["Bsol"]
-            ksolBsol = ksol*np.exp(-Bsol*(qr/(4*np.pi))**2)
+        #     #Calculate excluded volume
+        #     # ksol = 0.334     #Best fits occured between 1.08-1.13 but ksol>1 causes the strange blobbing
+        #     # Bsol = 75      #Best fits occured between 60 - 80
+        #     ksol = dev_var["ksol"]
+        #     Bsol = dev_var["Bsol"]
+        #     ksolBsol = ksol*np.exp(-Bsol*(qr/(4*np.pi))**2)
 
-            sigma = np.sqrt(Bsol)/(2*np.sqrt(2)*np.pi)
-            # print(sigma)
+        #     sigma = np.sqrt(Bsol)/(2*np.sqrt(2)*np.pi)
 
-            rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
-            rho_search = rho_search_invacuo - rho_search_exvol
-            
-            # F_search_invacuo = myfftn(rho_search_invacuo)
-            # F_search= F_search_invacuo*(1-ksolBsol)
-            # rho_search = myifftn(F_search).real
+        #     rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
+        #     rho_search = rho_search_invacuo - rho_search_exvol
 
-            # rho_search *= emax_ligand/np.max(rho_search)
-            # rho_search_invacuo *= ne_ligand_invacuo/np.sum(rho_search_invacuo)
-
-            # iv_step=25
-            iv_step = dev_var["iv_step"]
-        else:
-            enable_search_invacuo = False
-            #set the number of electrons in the ligand search space
-            #This will need to be changed when no longer reading in ligand pdb
-            rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
-            # rho_search *= ne_ligand/np.sum(rho_search)
-            # rho_search *= emax_ligand/np.max(rho_search)
-            # rho_search[sas_search] = 1
-            # rho_search[sas_search] += 0.5
-            # rho_search[idx_search] = 1
-
+        #     # iv_step=25
+        #     iv_step = dev_var["iv_step"]
+        # else:
+        #     enable_search_invacuo = False
+        #     #set the number of electrons in the ligand search space
+        #     #This will need to be changed when no longer reading in ligand pdb
+        #     rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
+        #     # rho_search *= ne_ligand/np.sum(rho_search)
+        #     # rho_search *= emax_ligand/np.max(rho_search)
+        rho_search *= np.abs(ne_ligand)/np.sum(rho_search)
         ##Testing giving true solution
         # rho_search = np.copy(rho_ligand)
 
@@ -1670,8 +1668,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         xcount = cp.array(xcount)
         if DENSS_HR:
             rho_known = cp.array(rho_known)
-            if enable_search_invacuo:
-                ksolBsol = cp.array(ksolBsol)
 
 
     for j in range(steps):
@@ -1701,26 +1697,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         #so set those factors to 1.0
         factors[~qba] = 1.0
         F *= factors[qbin_labels]
-
-        ##-------------------------------------
-        ##Testing only scaling F_search
-        ##-------------------------------------
-        # if scale_F_search_factors:
-        #     F_search = F - F_known
-        #     # F_search = myfftn(rho_search, DENSS_GPU=DENSS_GPU)
-
-        #     for m in range(20):
-        #         F_search*=factors[qbl]
-        #         F_temp=F_known+F_search #I have a feeling the failure to converge has to do with resetting
-        #                                 #F_known in F before calculating Imean... Even though I checked and it does
-        #                                 #Converge over time..
-        #         I3D_temp = abs2(F_temp)
-        #         Imean_temp = mybinmean(I3D_temp.ravel(), binsravel=qblravel,xcount=xcount,DENSS_GPU=DENSS_GPU)
-        #         factors = xp.sqrt(Idata/Imean_temp)
-        #         factors[~qba] = 1.0
-
-        #     F = F_temp
-        #     Imean = Imean_temp
 
         chi[j] = mysum(((Imean[qba]-Idata[qba])/sigqdata[qba])**2, DENSS_GPU=DENSS_GPU)/Idata[qba].size
 
@@ -1756,15 +1732,6 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 else:
                     ER = False
                     HIO = True
-            elif enable_RAAR:
-                if (j>steps-100) or (j%100==0): #(j<100) or 
-                    ER =  True
-                    HIO =  False
-                    RAAR = False
-                else:
-                    ER = False
-                    HIO = False
-                    RAAR = True
             else:
                 ER = True
                 HIO = False
@@ -1775,30 +1742,26 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search[~idx_search] = 0
             if HIO:
                 rho_search[~idx_search] = old_rho_search[~idx_search] - beta*rho_search[~idx_search]
-            if RAAR:
-                rho_search[~idx_search] = beta*old_rho_search[~idx_search] - beta*rho_search[~idx_search] + (1-beta)*rho_search[~idx_search]
-                # rho_search[idx_search] = 2*beta*rho_search[idx_search] - beta*old_rho_search[idx_search]
 
             if scale_ne and j>1000:
                 rho_search[idx_search] *= emax_ligand / rho_search[idx_search].max()
 
             ##--------Applying real space restraints to F_search_invacuo--------##
-            if enable_search_invacuo and (j%iv_step==0): # and (j>2000): # and (j<steps-100):
-                F_search = myfftn(rho_search)
-                F_search_invacuo = F_search/(1-ksolBsol)
+            # if enable_search_invacuo and (j%iv_step==0): # and (j>2000): # and (j<steps-100):
+            #     F_search = myfftn(rho_search)
+            #     F_search_invacuo = F_search/(1-ksolBsol)
 
-                # rho_search_invacuo = np.copy(rho_search)
-                # rho_search_invacuo[rho_search_invacuo<0] = 0.0
+            #     # rho_search_invacuo = np.copy(rho_search)
+            #     # rho_search_invacuo[rho_search_invacuo<0] = 0.0
 
-                rho_search_invacuo = myifftn(F_search_invacuo).real
+            #     rho_search_invacuo = myifftn(F_search_invacuo).real
 
             #enforce positivity by making all negative density points zero in search.
-            if (positivity) and enable_search_invacuo and (j%iv_step==0): 
-                rho_search_invacuo[rho_search_invacuo<0] = 0.0
-            elif (positivity): # and (j in positivity_steps):
+            # if (positivity) and enable_search_invacuo and (j%iv_step==0): 
+            #     rho_search_invacuo[rho_search_invacuo<0] = 0.0
+            if (positivity): 
                 if j<p_steps: 
                     rho_search[rho_search<0] = 0.0
-                    # rho_search[rho_search<-0.334] = -0.334
                 else:
                     rho_search[rho_search<density_thresh] = density_thresh
                 
@@ -1828,55 +1791,62 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 target_cdf = np.copy(cdf_ligand)
                 rho_search[idx_search] = hist_match(rho_search[idx_search],target_cdf)
 
-            if enable_search_invacuo and j%iv_step==0: 
-                #Recalculate exlcuded volume after real space restraints on the invacuo component
-                # F_search_exvol = ksolBsol*F_search_invacuo
-                # rho_search_exvol = myifftn(F_search_exvol).real
-                # rho_search = rho_search_invacuo - rho_search_exvol
-                if DENSS_GPU:
-                        rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
-                rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
-                rho_search = rho_search_invacuo - rho_search_exvol
-                if DENSS_GPU:
-                        rho_search=cp.array(rho_search)
-
-            # if enforce_connectivity and j in enforce_connectivity_steps:
+            # if enable_search_invacuo and j%iv_step==0: 
+            #     #Recalculate exlcuded volume after real space restraints on the invacuo component
+            #     # F_search_exvol = ksolBsol*F_search_invacuo
+            #     # rho_search_exvol = myifftn(F_search_exvol).real
+            #     # rho_search = rho_search_invacuo - rho_search_exvol
             #     if DENSS_GPU:
-            #         rho_search = cp.asnumpy(rho_search)
-
-            #     #label the support into separate segments based on a 3x3x3 grid
-            #     struct = ndimage.generate_binary_structure(3, 3)
-            #     labeled_support, num_features = ndimage.label(idx_search, structure=struct)
-            #     sums = np.zeros((num_features))
-            #     num_features_to_keep = np.min([num_features,enforce_connectivity_max_features])
-            #     if not quiet:
-            #         if not gui:
-            #             print("EC: %d -> %d " % (num_features,num_features_to_keep))
-
-            #     #find the feature with the greatest number of electrons
-            #     for feature in range(num_features+1):
-            #         sums[feature-1] = np.sum(rho_search[labeled_support==feature])
-            #     big_feature = np.argmax(sums)+1
-            #     #order the indices of the features in descending order based on their sum/total density
-            #     sums_order = np.argsort(sums)[::-1]
-            #     sums_sorted = sums[sums_order]
-            #     #now grab the actual feature numbers (rather than the indices)
-            #     features_sorted = sums_order + 1
-
-            #     #remove features from the support that are not the primary feature
-            #     # support[labeled_support != big_feature] = False
-            #     #reset support to zeros everywhere
-            #     #then progressively add in regions of support up to num_features_to_keep
-            #     idx_search *= False
-            #     for feature in range(num_features_to_keep):
-            #         idx_search[labeled_support == features_sorted[feature]] = True
-
-            #     #clean up density based on new support
-            #     rho_search[~idx_search] = 0
-
+            #             rho_search_invacuo=cp.asnumpy(rho_search_invacuo)
+            #     rho_search_exvol = ksol*ndimage.gaussian_filter(rho_search_invacuo, sigma)
+            #     rho_search = rho_search_invacuo - rho_search_exvol
             #     if DENSS_GPU:
-            #         rho_search = cp.array(rho_search)
-            #         idx_search = cp.array(idx_search)
+            #             rho_search=cp.array(rho_search)
+
+            if enforce_connectivity and (j in enforce_connectivity_steps):
+                # if DENSS_GPU:
+                #     rho_search = cp.asnumpy(rho_search)
+                idx_search_temp = np.copy(idx_search)
+                rho_search_ec = np.copy(rho_search)
+                rho_search_ec[rho_search_ec<(enforce_connectivity_threshold*np.max(rho_search_ec))] = 0.0
+
+                #label the support into separate segments based on a 3x3x3 grid
+                struct = ndimage.generate_binary_structure(3, 1)
+                labeled_support, num_features = ndimage.label(rho_search_ec, structure=struct)
+                # write_mrc(np.ones_like(rho_known)*labeled_support, side, fprefix+"_support_labeled.mrc")
+                print(num_features)
+                sums = np.zeros((num_features))
+                # num_features_to_keep = 1
+                num_features_to_keep = np.min([num_features,enforce_connectivity_max_features])
+                if not quiet:
+                    if not gui:
+                        print("EC: %d -> %d " % (num_features,num_features_to_keep))
+
+                #find the feature with the greatest number of electrons
+                for feature in range(num_features+1):
+                    sums[feature-1] = np.sum(rho_search[labeled_support==feature])
+                big_feature = np.argmax(sums)+1
+                #order the indices of the features in descending order based on their sum/total density
+                sums_order = np.argsort(sums)[::-1]
+                sums_sorted = sums[sums_order]
+                #now grab the actual feature numbers (rather than the indices)
+                features_sorted = sums_order + 1
+
+                #remove features from the support that are not the primary feature
+                support[labeled_support != big_feature] = False
+                #reset support to zeros everywhere
+                #then progressively add in regions of support up to num_features_to_keep
+                idx_search_temp *= False
+                for feature in range(num_features_to_keep):
+                    idx_search_temp[labeled_support == features_sorted[feature]] = True
+
+                #clean up density based on temp support
+                rho_search[~idx_search_temp] = 0.0
+                write_mrc(np.ones_like(rho_known)*idx_search_temp, side, fprefix+"_idxsearch_temp.mrc")
+
+                # if DENSS_GPU:
+                #     rho_search = cp.array(rho_search)
+                #     idx_search = cp.array(idx_search)
 
             # rescale the search density so that it has the correct number of electrons
             # based on the expected ligand electron count (or alternatively based on maximum density)

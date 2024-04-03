@@ -68,6 +68,7 @@ def parse_arguments(parser):
     parser.add_argument("-ec_off","--enforce_connectivity_off", dest="enforce_connectivity", action="store_false", help="Do not enforce connectivity of support")
     parser.add_argument("-ec_steps","--enforce_connectivity_steps", default=None, type=int, nargs='+', help="List of steps to enforce connectivity")
     parser.add_argument("-ec_max","--enforce_connectivity_max_features", default=1, type=int, help="Maximum number of features (i.e. disconnected blobs) allowed in support during enforce_connectivity step.")
+    parser.add_argument("-ec_thresh","--enforce_connectivity_threshold",default=0.1, type=float,help="for DENSS-HR, a density threshold to remove noise for ligand density reconstructions")
     parser.add_argument("-cef", "--chi_end_fraction", default=0.001, type=float, help="Convergence criterion. Minimum threshold of chi2 std dev, as a fraction of the median chi2 of last 100 steps.")
     parser.add_argument("--write_xplor_format", default=False, action="store_true", help="Write out XPLOR map format (default only write MRC format).")
     parser.add_argument("--write_freq", default=100, type=int, help="How often to write out current density map (in steps, default 100).")
@@ -99,13 +100,7 @@ def parse_arguments(parser):
         dev_var = {}
         dev_var["enable_HIO"] = False
         dev_var["beta"] = 0.0
-        dev_var["search_invacuo"] = False
-        dev_var["ksol"] = 0.0
-        dev_var["Bsol"] = 0.0
-        dev_var["enable_scale_F_search"] = False
-        dev_var["enable_RAAR"] = False
         dev_var["histmatch"] = False
-        dev_var["iv_step"] = 1000
         dev_var["scale_ne"] = False
         dev_var["p_steps"] = 0
         dev_var["idx_probe"] = 1.4
@@ -123,33 +118,14 @@ def parse_arguments(parser):
         ##Set up dev_var with the variables that were passed (check for each development 
         #variable using if "___" in keys), and set defaults for the rest
         dev_var = args.dev_var
-        if dev_var.get("enable_HIO") is None:
-            dev_var["enable_HIO"] = False
-        if dev_var.get("enable_RAAR") is None:
-            dev_var["enable_RAAR"] = False
         if dev_var.get("beta") is None:
             dev_var["beta"] = 0.0
-        elif not dev_var["enable_RAAR"]:
+        else:
             dev_var["enable_HIO"] = True
+        if dev_var.get("enable_HIO") is None:
+            dev_var["enable_HIO"] = False
         if dev_var.get("search_invacuo") is None:
             dev_var["search_invacuo"] = False
-        if dev_var.get("ksol") is None:
-            if dev_var.get("search_invacuo"):
-                dev_var["ksol"] = 0.9
-            else:
-                dev_var["ksol"] = 0.0
-        if dev_var.get("Bsol") is None:
-            if dev_var.get("search_invacuo"):
-                dev_var["Bsol"] = 75
-            else:
-                dev_var["Bsol"] = 0.0
-        if dev_var.get("iv_step") is None:
-            if dev_var.get("search_invacuo"):
-                dev_var["iv_step"] = 1
-            else:
-                dev_var["iv_step"] = 1000
-        if dev_var.get("enable_scale_F_search") is None:
-            dev_var["enable_scale_F_search"] = False
         if dev_var.get("histmatch") is None:
             dev_var["histmatch"] = False
         if dev_var.get("scale_ne") is None:
