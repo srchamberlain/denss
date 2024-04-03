@@ -1804,8 +1804,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             #             rho_search=cp.array(rho_search)
 
             if enforce_connectivity and (j in enforce_connectivity_steps):
-                # if DENSS_GPU:
-                #     rho_search = cp.asnumpy(rho_search)
+                if DENSS_GPU:
+                    rho_search = cp.asnumpy(rho_search)
                 idx_search_temp = np.copy(idx_search)
                 rho_search_ec = np.copy(rho_search)
                 rho_search_ec[rho_search_ec<(enforce_connectivity_threshold*np.max(rho_search_ec))] = 0.0
@@ -1844,9 +1844,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 rho_search[~idx_search_temp] = 0.0
                 write_mrc(np.ones_like(rho_known)*idx_search_temp, side, fprefix+"_idxsearch_temp.mrc")
 
-                # if DENSS_GPU:
-                #     rho_search = cp.array(rho_search)
-                #     idx_search = cp.array(idx_search)
+                if DENSS_GPU:
+                    rho_search = cp.array(rho_search)
 
             # rescale the search density so that it has the correct number of electrons
             # based on the expected ligand electron count (or alternatively based on maximum density)
