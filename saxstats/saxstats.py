@@ -1808,13 +1808,20 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                     rho_search = cp.asnumpy(rho_search)
                 idx_search_temp = np.copy(idx_search)
                 rho_search_ec = np.copy(rho_search)
+
+                #Maybe have it set a threshold where the largest piece of conencted density is the expected
+                # volume of the ligand?
+                #Or do we choose an extremly low threshold and just keep the largest pieces until it is the volume 
+                # of the ligand at the same threshold?**
+                rho_search_ec = ndimage.gaussian_filter(rho_search_ec,sigma=1.0)
+                # write_mrc(rho_search_ec, side, fprefix+"_startSmoothed.mrc")
                 rho_search_ec[rho_search_ec<(enforce_connectivity_threshold*np.max(rho_search_ec))] = 0.0
 
                 #label the support into separate segments based on a 3x3x3 grid
                 struct = ndimage.generate_binary_structure(3, 1)
                 labeled_support, num_features = ndimage.label(rho_search_ec, structure=struct)
                 # write_mrc(np.ones_like(rho_known)*labeled_support, side, fprefix+"_support_labeled.mrc")
-                print(num_features)
+                # print(num_features)
                 sums = np.zeros((num_features))
                 # num_features_to_keep = 1
                 num_features_to_keep = np.min([num_features,enforce_connectivity_max_features])
