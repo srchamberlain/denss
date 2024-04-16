@@ -1279,7 +1279,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             pdb_search.coords+=coord_shift
 
         idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=idx_radius)
-        # write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_idxsearch.mrc")
+        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_idxsearch.mrc")
         # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
@@ -1811,16 +1811,15 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
                 #Maybe have it set a threshold where the largest piece of conencted density is the expected
                 # volume of the ligand?
-                #Or do we choose an extremly low threshold and just keep the largest pieces until it is the volume 
-                # of the ligand at the same threshold?**
-                rho_search_ec = ndimage.gaussian_filter(rho_search_ec,sigma=1.0)
+                #
+                rho_search_ec = ndimage.gaussian_filter(rho_search_ec,sigma=(1.0/dx))
                 # write_mrc(rho_search_ec, side, fprefix+"_startSmoothed.mrc")
                 rho_search_ec[rho_search_ec<(enforce_connectivity_threshold*np.max(rho_search_ec))] = 0.0
 
                 #label the support into separate segments based on a 3x3x3 grid
-                struct = ndimage.generate_binary_structure(3, 1)
+                struct = ndimage.generate_binary_structure(3, 3)
                 labeled_support, num_features = ndimage.label(rho_search_ec, structure=struct)
-                # write_mrc(np.ones_like(rho_known)*labeled_support, side, fprefix+"_support_labeled.mrc")
+                write_mrc(np.ones_like(rho_known)*labeled_support, side, fprefix+"_support_labeled.mrc")
                 # print(num_features)
                 sums = np.zeros((num_features))
                 # num_features_to_keep = 1
@@ -4971,7 +4970,16 @@ def pdb2support_fast(pdb,x,y,z,radius=None,probe=0.0):
 def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
     """Return a 3D Boolean array of the Solvent Excluded Surface in the binding pocket of a protein.
     Takes in a PDB object of known protein, and a pdb object defining the center point of the
-    search space. """
+    search space.
+
+    pdb - instance of PDB class (required)
+    center_pdb - instance of PDB class defining a voxel inside the potential binding pocket (required)
+    x,y,z - meshgrids for x, y, and z (required)
+    probe - distance from the known protein to define the solvent accessible surface (optional, default the radius of a water molecule)
+    radii - float of a large search radius (optional, uses 15Å sphere as default)
+
+
+    """
 
     # support = np.ones(x.shape,dtype=np.bool_)
     support_final = np.zeros(x.shape,dtype=np.bool_)
@@ -5017,7 +5025,8 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
         natoms = pdb.natoms
         for i in range(natoms):
             dist1 = spatial.distance.cdist(pdb.coords[None,i], grid)
-            dist1 -= pdb.vdW[i]
+            # dist1 -= pdb.vdW[i]
+            dist1 -= (pdb.vdW[i]*0.95)
             grid_support[dist1[0,:]<r_water] = False
 
         support_ravel[dist[:,0]<=radius] = grid_support
@@ -5053,7 +5062,11 @@ def pdb2SES(pdb,center_pdb,x,y,z,probe=1.4,radius=15):
         ngridpoints = len(grid2[:,0])
         for i in range(ngridpoints):
             dist2 = spatial.distance.cdist(grid,[grid2[i,:]])
-            grid2_support[dist2[:,0]<probe] = True
+            # grid2_support[dist2[:,0]<probe] = True
+            if probe<r_water:
+                grid2_support[dist2[:,0]<r_water] = True
+            else:   
+                grid2_support[dist2[:,0]<probe] = True
 
         support_ravel[dist[:,0]<=radius] = grid2_support
 
