@@ -1819,7 +1819,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #label the support into separate segments based on a 3x3x3 grid
                 struct = ndimage.generate_binary_structure(3, 3)
                 labeled_support, num_features = ndimage.label(rho_search_ec, structure=struct)
-                write_mrc(np.ones_like(rho_known)*labeled_support, side, fprefix+"_support_labeled.mrc")
+                # write_mrc(np.ones_like(rho_known)*labeled_support, side, fprefix+"_support_labeled.mrc")
                 # print(num_features)
                 sums = np.zeros((num_features))
                 # num_features_to_keep = 1
@@ -1848,7 +1848,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
                 #clean up density based on temp support
                 rho_search[~idx_search_temp] = 0.0
-                write_mrc(np.ones_like(rho_known)*idx_search_temp, side, fprefix+"_idxsearch_temp.mrc")
+                # write_mrc(np.ones_like(rho_known)*idx_search_temp, side, fprefix+"_idxsearch_temp.mrc")
 
                 if DENSS_GPU:
                     rho_search = cp.array(rho_search)
