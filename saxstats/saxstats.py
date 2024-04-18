@@ -1349,7 +1349,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_ligand = pdb2support_fast(pdb_ligand,x,y,z)
         ligand_volume = idx_ligand.sum()*dV
 
-        write_mrc(rho_ligand, side, fprefix+"_ligtrue.mrc")
+        if write_extras_mrc:
+            write_mrc(rho_ligand, side, fprefix+"_ligtrue.mrc")
 
         #generate holo density for calculating scattering profile
         rho_holo = rho_known + rho_ligand
