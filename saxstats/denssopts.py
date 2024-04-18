@@ -83,6 +83,7 @@ def parse_arguments(parser):
     parser.add_argument("-pdb_ligand", "--pdb_ligand", dest="pdb_fn_ligand", type=str, help="PDB filename defining ligand atoms (for development only).")
     parser.add_argument("-pdb_apo", "--pdb_apo", default=None, dest="pdb_fn_apo", type=str, help="PDB filename defining apo structure atoms.")
     parser.add_argument("-dv", "--dev_var", dest="dev_var", default={}, type=json.loads)
+    parser.add_argument("--write_extras_mrc", default=False, action="store_true", help="Write extra mrc files (known protein density, search space).")
     parser.set_defaults(shrinkwrap=None)
     parser.set_defaults(shrinkwrap_old_method=None)
     parser.set_defaults(recenter=None)

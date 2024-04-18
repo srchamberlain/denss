@@ -1053,6 +1053,7 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
     abort_event=None, my_logger=logging.getLogger(), path='.', gui=False, DENSS_GPU=False,
     #ligand additions
     pdb_fn_known=None,pdb_fn_ligand=None,pdb_fn_search=None,pdb_fn_apo=None,
+    write_extras_mrc=False,
     dev_var={}):
     """Calculate electron density from scattering data."""
     if abort_event is not None:
@@ -1269,7 +1270,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         idx_known = pdb2support_fast(pdb_known,x,y,z)
         rho_known_min = rho_known.min()
 
-        write_mrc(rho_known, side, fprefix+"_known.mrc")
+        if write_extras_mrc:
+            write_mrc(rho_known, side, fprefix+"_known.mrc")
 
         #for now, set the search region to near the known ligand.
         bn_search, ext = os.path.splitext(pdb_fn_search)
@@ -1279,7 +1281,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
             pdb_search.coords+=coord_shift
 
         idx_search, sas_search = pdb2SES(pdb_known,pdb_search,x,y,z, probe=idx_probe,radius=idx_radius)
-        write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_idxsearch.mrc")
+        if write_extras_mrc:
+            write_mrc(np.ones_like(rho_known)*idx_search, side, fprefix+"_idxsearch.mrc")
         # write_mrc(np.ones_like(rho_known)*sas_search, side, fprefix+"_sassearch.mrc")
 
         #old idx search based on distance from search coordinates
@@ -1529,7 +1532,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
 
         print('Number of electrons in search space: %.2f' % (rho_search.sum()))
 
-        write_mrc(rho_search, side, fprefix+"_search_start.mrc")
+        if write_extras_mrc:
+            write_mrc(rho_search, side, fprefix+"_search_start.mrc")
 
         #---------end of development section---------------#
 
@@ -2183,7 +2187,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
         write_xplor(rho,side,fprefix+".xplor")
         write_xplor(np.ones_like(rho)*support, side, fprefix+"_support.xplor")
 
-    write_mrc(rho,side,fprefix+".mrc")
+    if write_extras_mrc:
+        write_mrc(rho,side,fprefix+".mrc")
     if DENSS_HR:
         write_mrc(rho_search,side,fprefix+"_search.mrc")
         write_mrc(np.ones_like(rho_search)*idx_search,side, fprefix+"_search_support.mrc")

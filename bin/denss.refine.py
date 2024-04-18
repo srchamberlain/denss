@@ -117,6 +117,7 @@ if __name__ == "__main__":
         pdb_fn_search=args.pdb_fn_search,
         pdb_fn_ligand=args.pdb_fn_ligand, 
         pdb_fn_apo=args.pdb_fn_apo,
+        write_extras_mrc=args.write_extras_mrc,
         dev_var=args.dev_var)
 
     print("\n%s"%args.output)

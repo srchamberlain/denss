@@ -274,102 +274,103 @@ if __name__ == "__main__":
             ioutput = output+"_"+str(i)+"_enan"
             saxs.write_mrc(allrhos[i], sides[0], ioutput+".mrc")
 
-    if superargs.ref is None:
+    if pdb_fn_known is None:
+        if superargs.ref is None:
+            print()
+            print(" Generating reference...")
+            superlogger.info('Generating reference')
+            try:
+                refrho = saxs.binary_average(allrhos, superargs.cores)
+                saxs.write_mrc(refrho, sides[0], output+"_reference.mrc")
+            except KeyboardInterrupt:
+                sys.exit(1)
+
         print()
-        print(" Generating reference...")
-        superlogger.info('Generating reference')
+        print(" Aligning all maps to reference...")
+        superlogger.info('Aligning all maps to reference')
         try:
-            refrho = saxs.binary_average(allrhos, superargs.cores)
-            saxs.write_mrc(refrho, sides[0], output+"_reference.mrc")
+            aligned, scores = saxs.align_multiple(refrho, allrhos, superargs.cores)
         except KeyboardInterrupt:
             sys.exit(1)
 
-    print()
-    print(" Aligning all maps to reference...")
-    superlogger.info('Aligning all maps to reference')
-    try:
-        aligned, scores = saxs.align_multiple(refrho, allrhos, superargs.cores)
-    except KeyboardInterrupt:
-        sys.exit(1)
+        #filter rhos with scores below the mean - 2*standard deviation.
+        mean = np.mean(scores)
+        std = np.std(scores)
+        threshold = mean - 2*std
+        filtered = np.empty(len(scores),dtype=str)
+        print("Mean of correlation scores: %.3f" % mean)
+        print("Standard deviation of scores: %.3f" % std)
+        for i in range(superargs.nmaps):
+            if scores[i] < threshold:
+                filtered[i] = 'Filtered'
+            else:
+                filtered[i] = ' '
+            ioutput = output+"_"+str(i)+"_aligned"
+            saxs.write_mrc(aligned[i], sides[0], ioutput+".mrc")
+            print("%s.mrc written. Score = %0.3f %s " % (ioutput,scores[i],filtered[i]))
+            superlogger.info('Correlation score to reference: %s.mrc %.3f %s', ioutput, scores[i], filtered[i])
 
-    #filter rhos with scores below the mean - 2*standard deviation.
-    mean = np.mean(scores)
-    std = np.std(scores)
-    threshold = mean - 2*std
-    filtered = np.empty(len(scores),dtype=str)
-    print("Mean of correlation scores: %.3f" % mean)
-    print("Standard deviation of scores: %.3f" % std)
-    for i in range(superargs.nmaps):
-        if scores[i] < threshold:
-            filtered[i] = 'Filtered'
+        idx_keep = np.where(scores>threshold)
+        kept_ids = np.arange(superargs.nmaps)[idx_keep]
+        aligned = aligned[idx_keep]
+        average_rho = np.mean(aligned,axis=0)
+
+        superlogger.info('Mean of correlation scores: %.3f', mean)
+        superlogger.info('Standard deviation of the scores: %.3f', std)
+        superlogger.info('Total number of input maps for alignment: %i',allrhos.shape[0])
+        superlogger.info('Number of aligned maps accepted: %i', aligned.shape[0])
+        superlogger.info('Correlation score between average and reference: %.3f', -saxs.rho_overlap_score(average_rho, refrho))
+        superlogger.info('Mean Density of Avg Map (all voxels): %3.5f', np.mean(average_rho))
+        superlogger.info('Std. Dev. of Density (all voxels): %3.5f', np.std(average_rho))
+        superlogger.info('RMSD of Density (all voxels): %3.5f', np.sqrt(np.mean(np.square(average_rho))))
+        saxs.write_mrc(average_rho, sides[0], output+'_avg.mrc')
+
+        #rather than compare two halves, average all fsc's to the reference
+        fscs = []
+        resns = []
+        for calc_map in range(len(aligned)):
+            fsc_map = saxs.calc_fsc(aligned[calc_map],refrho,sides[0])
+            fscs.append(fsc_map)
+            resn_map = saxs.fsc2res(fsc_map)
+            resns.append(resn_map)
+
+        fscs = np.array(fscs)
+
+        #save a file containing all fsc curves
+        fscs_header = ['res(1/A)']
+        for i in kept_ids:
+            ioutput = output+"_"+str(i)+"_aligned"
+            fscs_header.append(ioutput)
+        #add the resolution as the first column
+        fscs_for_file = np.vstack((fscs[0,:,0],fscs[:,:,1])).T
+        np.savetxt(output+'_allfscs.dat',fscs_for_file,delimiter=" ",fmt="%.5e",header=",".join(fscs_header))
+
+        resns = np.array(resns)
+        fsc = np.mean(fscs,axis=0)
+        resn, x, y, resx = saxs.fsc2res(fsc, return_plot=True)
+        resn_sd = np.std(resns)
+        if np.min(fsc[:,1]) > 0.5:
+            print("Resolution: < %.1f +- %.1f A (maximum possible)" % (resn,resn_sd))
         else:
-            filtered[i] = ' '
-        ioutput = output+"_"+str(i)+"_aligned"
-        saxs.write_mrc(aligned[i], sides[0], ioutput+".mrc")
-        print("%s.mrc written. Score = %0.3f %s " % (ioutput,scores[i],filtered[i]))
-        superlogger.info('Correlation score to reference: %s.mrc %.3f %s', ioutput, scores[i], filtered[i])
+            print("Resolution: %.1f +- %.1f A " % (resn,resn_sd))
 
-    idx_keep = np.where(scores>threshold)
-    kept_ids = np.arange(superargs.nmaps)[idx_keep]
-    aligned = aligned[idx_keep]
-    average_rho = np.mean(aligned,axis=0)
+        np.savetxt(output+'_fsc.dat',fsc,delimiter=" ",fmt="%.5e",header="1/resolution, FSC; Resolution=%.1f +- %.1f A" % (resn,resn_sd))
 
-    superlogger.info('Mean of correlation scores: %.3f', mean)
-    superlogger.info('Standard deviation of the scores: %.3f', std)
-    superlogger.info('Total number of input maps for alignment: %i',allrhos.shape[0])
-    superlogger.info('Number of aligned maps accepted: %i', aligned.shape[0])
-    superlogger.info('Correlation score between average and reference: %.3f', -saxs.rho_overlap_score(average_rho, refrho))
-    superlogger.info('Mean Density of Avg Map (all voxels): %3.5f', np.mean(average_rho))
-    superlogger.info('Std. Dev. of Density (all voxels): %3.5f', np.std(average_rho))
-    superlogger.info('RMSD of Density (all voxels): %3.5f', np.sqrt(np.mean(np.square(average_rho))))
-    saxs.write_mrc(average_rho, sides[0], output+'_avg.mrc')
+        superlogger.info('Resolution = %.1f +- %.1f A' % (resn,resn_sd))
+        superlogger.info('END')
 
-    #rather than compare two halves, average all fsc's to the reference
-    fscs = []
-    resns = []
-    for calc_map in range(len(aligned)):
-        fsc_map = saxs.calc_fsc(aligned[calc_map],refrho,sides[0])
-        fscs.append(fsc_map)
-        resn_map = saxs.fsc2res(fsc_map)
-        resns.append(resn_map)
-
-    fscs = np.array(fscs)
-
-    #save a file containing all fsc curves
-    fscs_header = ['res(1/A)']
-    for i in kept_ids:
-        ioutput = output+"_"+str(i)+"_aligned"
-        fscs_header.append(ioutput)
-    #add the resolution as the first column
-    fscs_for_file = np.vstack((fscs[0,:,0],fscs[:,:,1])).T
-    np.savetxt(output+'_allfscs.dat',fscs_for_file,delimiter=" ",fmt="%.5e",header=",".join(fscs_header))
-
-    resns = np.array(resns)
-    fsc = np.mean(fscs,axis=0)
-    resn, x, y, resx = saxs.fsc2res(fsc, return_plot=True)
-    resn_sd = np.std(resns)
-    if np.min(fsc[:,1]) > 0.5:
-        print("Resolution: < %.1f +- %.1f A (maximum possible)" % (resn,resn_sd))
-    else:
-        print("Resolution: %.1f +- %.1f A " % (resn,resn_sd))
-
-    np.savetxt(output+'_fsc.dat',fsc,delimiter=" ",fmt="%.5e",header="1/resolution, FSC; Resolution=%.1f +- %.1f A" % (resn,resn_sd))
-
-    superlogger.info('Resolution = %.1f +- %.1f A' % (resn,resn_sd))
-    superlogger.info('END')
-
-    if superargs.plot:
-        import matplotlib.pyplot as plt
-        plt.plot(fsc[:,0],fsc[:,0]*0+0.5,'k--')
-        for i in range(len(aligned)):
-            plt.plot(fscs[i,:,0],fscs[i,:,1],'k--',alpha=0.1)
-        plt.plot(fsc[:,0],fsc[:,1],'bo-')
-        #plt.plot(x,y,'k-')
-        plt.plot([resx],[0.5],'ro',label='Resolution = %.2f $\mathrm{\AA}$'%resn)
-        plt.legend()
-        plt.xlabel('Resolution (1/$\mathrm{\AA}$)')
-        plt.ylabel('Fourier Shell Correlation')
-        pltoutput = os.path.splitext(output)[0]
-        print(pltoutput)
-        plt.savefig(pltoutput+'_fsc.png',dpi=150)
-        plt.close()
+        if superargs.plot:
+            import matplotlib.pyplot as plt
+            plt.plot(fsc[:,0],fsc[:,0]*0+0.5,'k--')
+            for i in range(len(aligned)):
+                plt.plot(fscs[i,:,0],fscs[i,:,1],'k--',alpha=0.1)
+            plt.plot(fsc[:,0],fsc[:,1],'bo-')
+            #plt.plot(x,y,'k-')
+            plt.plot([resx],[0.5],'ro',label='Resolution = %.2f $\mathrm{\AA}$'%resn)
+            plt.legend()
+            plt.xlabel('Resolution (1/$\mathrm{\AA}$)')
+            plt.ylabel('Fourier Shell Correlation')
+            pltoutput = os.path.splitext(output)[0]
+            print(pltoutput)
+            plt.savefig(pltoutput+'_fsc.png',dpi=150)
+            plt.close()
