@@ -1817,6 +1817,8 @@ def denss(q, I, sigq, dmax, qraw=None, Iraw=None, sigqraw=None,
                 #Maybe have it set a threshold where the largest piece of conencted density is the expected
                 # volume of the ligand?
                 #
+                # print("1A in pixel # ", 1.0/dx)
+                # print("2A in pixel # ", 2.0/dx)
                 rho_search_ec = ndimage.gaussian_filter(rho_search_ec,sigma=(1.0/dx))
                 # write_mrc(rho_search_ec, side, fprefix+"_startSmoothed.mrc")
                 rho_search_ec[rho_search_ec<(enforce_connectivity_threshold*np.max(rho_search_ec))] = 0.0
